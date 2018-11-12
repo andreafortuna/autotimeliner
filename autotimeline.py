@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-import os,shutil,sys,time, requests
+import os,shutil,sys
 
 
-global MALHUNTHOME, VOLATILITYBIN, EXCLUDEDWORDS
-MALHUNTHOME = os.path.expanduser("~/.autotimeline")
+global VOLATILITYBIN
 VOLATILITYBIN = os.popen("which volatility || which vol.py").read().rstrip()
 
 

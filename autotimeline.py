@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import os,shutil,sys
+from glob import glob
 
 
 global VOLATILITYBIN
@@ -60,7 +61,7 @@ https://www.andreafortuna.org
 
 def banner_usage():
 	print " Usage:"
-	print " " + sys.argv[0] + " imagefile startdate(YYYY-MM-DD) enddate(YYYY-MM-DD)"
+	print " " + sys.argv[0] + " [imagefile (also wikdcards)] [startdate(YYYY-MM-DD)] [enddate(YYYY-MM-DD)]"
 
 
 
@@ -72,33 +73,37 @@ def main():
 	if len(sys.argv) <4:
 		banner_usage()
 		return ""
-	filename = sys.argv[1]
+	filenames = sys.argv[1]
 	startdate = sys.argv[2]
 	enddate = sys.argv[3]
 
-	sys.stdout.write("\033[1m*** \033[0mStarting image identification...")
-	sys.stdout.flush()
-	volProfile = image_identification(filename)
-	sys.stdout.write("..." + volProfile + "\n")
-	sys.stdout.flush()
-	sys.stdout.write("\033[1m*** \033[0mCreating memory timeline...")
-	sys.stdout.flush()
-	create_memory_timeline(filename, volProfile)
-        sys.stdout.write("...done!\n")
-        sys.stdout.flush()
-        sys.stdout.write("\033[1m*** \033[0mCreating $MFT timeline...")
-        sys.stdout.flush()
-	create_mft_timeline(filename, volProfile)
-        sys.stdout.write("...done!\n")
-        sys.stdout.flush()
-        sys.stdout.write("\033[1m*** \033[0mMerging and filtering timelines...")
-        sys.stdout.flush()
-	combine_timelines(filename)
-	filter_timeline(filename, startdate, enddate)
-        sys.stdout.write("...done!\n")
-        sys.stdout.flush()
-	sys.stdout.write("Timeline saved in " +  filename  + "-timeline.csv\n")
-        sys.stdout.flush()
+	filelist = glob(filenames)
+	for filename in filelist:
+                sys.stdout.write("\033[1m*** \033[0mProcessing image " + filename + "\n-------\n")
+                sys.stdout.flush()
+		sys.stdout.write("\033[1m*** \033[0mStarting image identification...")
+		sys.stdout.flush()
+		volProfile = image_identification(filename)
+		sys.stdout.write("..." + volProfile + "\n")
+		sys.stdout.flush()
+		sys.stdout.write("\033[1m*** \033[0mCreating memory timeline...")
+		sys.stdout.flush()
+		create_memory_timeline(filename, volProfile)
+ 		sys.stdout.write("...done!\n")
+		sys.stdout.flush()
+		sys.stdout.write("\033[1m*** \033[0mCreating $MFT timeline...")
+ 		sys.stdout.flush()
+		create_mft_timeline(filename, volProfile)
+		sys.stdout.write("...done!\n")
+		sys.stdout.flush()
+		sys.stdout.write("\033[1m*** \033[0mMerging and filtering timelines...")
+		sys.stdout.flush()
+		combine_timelines(filename)
+		filter_timeline(filename, startdate, enddate)
+		sys.stdout.write("...done!\n")
+		sys.stdout.flush()
+		sys.stdout.write("Timeline saved in " +  filename  + "-timeline.csv\n")
+		sys.stdout.flush()
 
 
 

@@ -29,6 +29,11 @@ def create_memory_timeline(filename, volProfile):
 def create_mft_timeline(filename, volProfile):
 	volOutput = os.popen(VOLATILITYBIN + " -f " + filename +  " --profile=" + volProfile + " mftparser --output=body > " + filename + "-mftparser.body  2>/dev/null").read()
 
+def create_shellbags_timeline(filename, volProfile):
+	volOutput = os.popen(VOLATILITYBIN + " -f " + filename +  " --profile=" + volProfile + " shellbags --output=body > " + filename + "-shellbags.body  2>/dev/null").read()
+
+
+
 
 def combine_timelines(filename):
 	filenames = [filename + '-timeliner.body', filename  + '-mftparser.body']
@@ -40,7 +45,10 @@ def combine_timelines(filename):
 
 
 def filter_timeline(filename, startdate, enddate):
-	cmdOutput = os.popen("mactime -d -b  " + filename +  "-combined.body " + startdate + ".." + enddate + " > " + filename  + "-timeline.csv").read()
+	if startdate != 0:
+		cmdOutput = os.popen("mactime -d -b  " + filename +  "-combined.body " + startdate + ".." + enddate + " > " + filename  + "-timeline.csv").read()
+	else:
+		cmdOutput = os.popen("mactime -d -b  " + filename +  "-combined.body  >  " + filename  + "-timeline.csv").read()
 
 
 def banner_logo():
@@ -61,21 +69,24 @@ https://www.andreafortuna.org
 
 def banner_usage():
 	print " Usage:"
-	print " " + sys.argv[0] + " [imagefile (also wikdcards)] [startdate(YYYY-MM-DD)] [enddate(YYYY-MM-DD)]"
-
-
+	print " " + sys.argv[0] + " imagefile(also wildcards) [startdate(YYYY-MM-DD)] [enddate(YYYY-MM-DD)]"
 
 
 
 
 def main():
 	banner_logo()
-	if len(sys.argv) <4:
+	if len(sys.argv) <2:
 		banner_usage()
 		return ""
 	filenames = sys.argv[1]
-	startdate = sys.argv[2]
-	enddate = sys.argv[3]
+
+	startdate = 0
+	enddate = 0
+
+	if len(sys.argv) == 4:
+		startdate = sys.argv[2]
+		enddate = sys.argv[3]
 
 	filelist = glob(filenames)
 	for filename in filelist:
@@ -91,6 +102,13 @@ def main():
 		create_memory_timeline(filename, volProfile)
  		sys.stdout.write("...done!\n")
 		sys.stdout.flush()
+
+	        sys.stdout.write("\033[1m*** \033[0mCreating shellbags timeline...")
+	        sys.stdout.flush()
+	        create_shellbags_timeline(filename, volProfile)
+	        sys.stdout.write("...done!\n")
+	        sys.stdout.flush()
+
 		sys.stdout.write("\033[1m*** \033[0mCreating $MFT timeline...")
  		sys.stdout.flush()
 		create_mft_timeline(filename, volProfile)

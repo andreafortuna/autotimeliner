@@ -1,5 +1,7 @@
 # AutoTimeliner
 
+![Autotimeliner](https://i2.wp.com/www.andreafortuna.org/wp-content/uploads/2018/11/autotimeliner.gif)
+
 Automagically extract forensic timeline from volatile memory dumps.
 
 

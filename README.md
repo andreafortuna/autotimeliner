@@ -9,7 +9,7 @@ Automagically extract forensic timeline from volatile memory dumps.
 - Volatility
 - mactime (from SleuthKit)
 
-##How it works
+## How it works
 
 AutoTimeline automates this workflow:
 

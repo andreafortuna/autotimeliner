@@ -2,6 +2,7 @@
 # encoding: utf-8
 
 import os,shutil,sys
+import argparse
 from glob import glob
 
 
@@ -44,59 +45,33 @@ def combine_timelines(filename):
 					outfile.write(line)
 
 
-def filter_timeline(filename, startdate, enddate):
-	if startdate != 0:
-		cmdOutput = os.popen("mactime -d -b  " + filename +  "-combined.body " + startdate + ".." + enddate + " > " + filename  + "-timeline.csv").read()
+def filter_timeline(filename, timeframe):
+	if timeframe:
+		cmdOutput = os.popen("mactime -d -b  " + filename +  "-combined.body " + timeframe + " > " + filename  + "-timeline.csv").read()
 	else:
-		cmdOutput = os.popen("mactime -d -b  " + filename +  "-combined.body  >  " + filename  + "-timeline.csv").read()
-
-
-def banner_logo():
-        print """ 
-                _     _______ _                _ _                 
-     /\        | |   |__   __(_)              | (_)                
-    /  \  _   _| |_ ___ | |   _ _ __ ___   ___| |_ _ __   ___ _ __ 
-   / /\ \| | | | __/ _ \| |  | | '_ ` _ \ / _ \ | | '_ \ / _ \ '__|
-  / ____ \ |_| | || (_) | |  | | | | | | |  __/ | | | | |  __/ |   
- /_/    \_\__,_|\__\___/|_|  |_|_| |_| |_|\___|_|_|_| |_|\___|_| 
-
-- Automagically extract forensic timeline from volatile memory dump -
-
-Andrea Fortuna
-andrea@andreafortuna.org
-https://www.andreafortuna.org
-"""
-
-def banner_usage():
-	print " Usage:"
-	print " " + sys.argv[0] + " imagefile(also wildcards) [startdate(YYYY-MM-DD)] [enddate(YYYY-MM-DD)]"
+		cmdOutput = os.popen("mactime -d -b  " + filename +  "-combined.body > " + filename  + "-timeline.csv").read()
 
 
 
-
-def main():
-	banner_logo()
-	if len(sys.argv) <2:
-		banner_usage()
-		return ""
-	filenames = sys.argv[1]
-
-	startdate = 0
-	enddate = 0
-
-	if len(sys.argv) == 4:
-		startdate = sys.argv[2]
-		enddate = sys.argv[3]
+def main(args):
+	filenames = args["imagefile"]
+	timeframe = args["timeframe"]
+	customprofile = args["customprofile"]
 
 	filelist = glob(filenames)
 	for filename in filelist:
                 sys.stdout.write("\033[1m*** \033[0mProcessing image " + filename + "\n-------\n")
                 sys.stdout.flush()
-		sys.stdout.write("\033[1m*** \033[0mStarting image identification...")
-		sys.stdout.flush()
-		volProfile = image_identification(filename)
-		sys.stdout.write("..." + volProfile + "\n")
-		sys.stdout.flush()
+		if customprofile:
+			sys.stdout.write("\033[1m*** \033[0mUsing custom profile: "+ customprofile + "\n")
+                        sys.stdout.flush()
+			volProfile = customprofile
+		else:
+			sys.stdout.write("\033[1m*** \033[0mStarting image identification...")
+			sys.stdout.flush()
+			volProfile = image_identification(filename)
+			sys.stdout.write("..." + volProfile + "\n")
+			sys.stdout.flush()
 		sys.stdout.write("\033[1m*** \033[0mCreating memory timeline...")
 		sys.stdout.flush()
 		create_memory_timeline(filename, volProfile)
@@ -117,7 +92,7 @@ def main():
 		sys.stdout.write("\033[1m*** \033[0mMerging and filtering timelines...")
 		sys.stdout.flush()
 		combine_timelines(filename)
-		filter_timeline(filename, startdate, enddate)
+		filter_timeline(filename, timeframe)
 		sys.stdout.write("...done!\n")
 		sys.stdout.flush()
 		sys.stdout.write("Timeline saved in " +  filename  + "-timeline.csv\n")
@@ -125,6 +100,28 @@ def main():
 
 
 
-if __name__ == '__main__':
-	main()
 
+if __name__ == '__main__':
+    version = "1.1.0"
+    print("""
+                _     _______ _                _ _
+     /\        | |   |__   __(_)              | (_)
+    /  \  _   _| |_ ___ | |   _ _ __ ___   ___| |_ _ __   ___ _ __
+   / /\ \| | | | __/ _ \| |  | | '_ ` _ \ / _ \ | | '_ \ / _ \ '__|
+  / ____ \ |_| | || (_) | |  | | | | | | |  __/ | | | | |  __/ |
+ /_/    \_\__,_|\__\___/|_|  |_|_| |_| |_|\___|_|_|_| |_|\___|_|
+
+- Automagically extract forensic timeline from volatile memory dump -
+
+Andrea Fortuna - andrea@andreafortuna.org - https://www.andreafortuna.org
+""")
+
+
+    args = argparse.ArgumentParser()
+
+    args.add_argument("-f", "--imagefile", required=True, help="Memory dump file")
+    args.add_argument("-t", "--timeframe", required=False, help="Timeframe used to filter the timeline (YYYY-MM-DD..YYYY-MM-DD)")
+    args.add_argument("-p", "--customprofile", required=False, help="Jump image identifcation and use a custom memory profile")
+
+    args = vars(args.parse_args())
+    main(args)

@@ -31,21 +31,36 @@ Simply clone the GitHub repository:
 
 ## Usage
 
+## Usage
 
-The script needs three parameters:
+```
+autotimeline.py [-h] -f IMAGEFILE [-t TIMEFRAME] [-p CUSTOMPROFILE]
 
-- Image file (with wildcard support)
-- Start date of the timeframe (optional) 
-- End date of the timeframe (optional)
+optional arguments:
+  -h, --help            show this help message and exit
+  -f IMAGEFILE, --imagefile IMAGEFILE
+                        Memory dump file
+  -t TIMEFRAME, --timeframe TIMEFRAME
+                        Timeframe used to filter the timeline (YYYY-MM-DD
+                        ..YYYY-MM-DD)
+  -p CUSTOMPROFILE, --customprofile CUSTOMPROFILE
+                        Jump image identifcation and use a custom memory
+                        profile
+```
+
 
 ### Examples
 
 Extract timeline from *TargetServerMemory.raw*, limited to a timeframe from **2018-10-17** to **2018-10-21**:
 
-`./autotimeline.py TargetServerMemory.raw 2018-10-17 2018-10-21`
+`./autotimeline.py -f TargetServerMemory.raw -t 2018-10-17..2018-10-21`
 
 Extract timeline from all images in current directory, limited to a timeframe from 2018-10-17 to 2018-10-21:
 
-`./autotimeline.py ./*.raw 2018-10-17 2018-10-21`
+`./autotimeline.py -f ./*.raw -t 2018-10-17..2018-10-21`
+
+Extract timeline from *TargetServerMemory.raw*, using a custom memory profile:
+
+`./autotimeline.py -f TargetServerMemory.raw -p Win2008R2SP1x64`
 
 All timelines will be saved as **$ORIGINALFILENAME-timeline.csv**.

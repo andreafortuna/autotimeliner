@@ -60,11 +60,11 @@ def main(args):
 
 	filelist = glob(filenames)
 	for filename in filelist:
-                sys.stdout.write("\033[1m*** \033[0mProcessing image " + filename + "\n-------\n")
-                sys.stdout.flush()
+		sys.stdout.write("\033[1m*** \033[0mProcessing image " + filename + "\n-------\n")
+		sys.stdout.flush()
 		if customprofile:
 			sys.stdout.write("\033[1m*** \033[0mUsing custom profile: "+ customprofile + "\n")
-                        sys.stdout.flush()
+			sys.stdout.flush()
 			volProfile = customprofile
 		else:
 			sys.stdout.write("\033[1m*** \033[0mStarting image identification...")
@@ -75,17 +75,17 @@ def main(args):
 		sys.stdout.write("\033[1m*** \033[0mCreating memory timeline...")
 		sys.stdout.flush()
 		create_memory_timeline(filename, volProfile)
- 		sys.stdout.write("...done!\n")
+		sys.stdout.write("...done!\n")
 		sys.stdout.flush()
 
-	        sys.stdout.write("\033[1m*** \033[0mCreating shellbags timeline...")
-	        sys.stdout.flush()
-	        create_shellbags_timeline(filename, volProfile)
-	        sys.stdout.write("...done!\n")
-	        sys.stdout.flush()
+		sys.stdout.write("\033[1m*** \033[0mCreating shellbags timeline...")
+		sys.stdout.flush()
+		create_shellbags_timeline(filename, volProfile)
+		sys.stdout.write("...done!\n")
+		sys.stdout.flush()
 
 		sys.stdout.write("\033[1m*** \033[0mCreating $MFT timeline...")
- 		sys.stdout.flush()
+		sys.stdout.flush()
 		create_mft_timeline(filename, volProfile)
 		sys.stdout.write("...done!\n")
 		sys.stdout.flush()

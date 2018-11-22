@@ -37,7 +37,7 @@ def create_shellbags_timeline(filename, volProfile):
 
 
 def combine_timelines(filename):
-	filenames = [filename + '-timeliner.body', filename  + '-mftparser.body']
+	filenames = [filename + '-timeliner.body', filename  + '-mftparser.body', filename  + '-shellbags.body']
 	with open(filename + '-combined.body', 'w') as outfile:
 		for fname in filenames:
 			with open(fname) as infile:

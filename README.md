@@ -7,9 +7,11 @@ Automagically extract forensic timeline from volatile memory dumps.
 
 ## Requirements
 
-- Python
+- Python 3
 - Volatility
 - mactime (from SleuthKit)
+
+(Developed and tested on Debian 9.6 with **Volatility 2.6-1** and **sleuthkit 4.4.0-5**)
 
 ## How it works
 

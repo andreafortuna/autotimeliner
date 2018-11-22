@@ -121,7 +121,7 @@ Andrea Fortuna - andrea@andreafortuna.org - https://www.andreafortuna.org
 
     args.add_argument("-f", "--imagefile", required=True, help="Memory dump file")
     args.add_argument("-t", "--timeframe", required=False, help="Timeframe used to filter the timeline (YYYY-MM-DD..YYYY-MM-DD)")
-    args.add_argument("-p", "--customprofile", required=False, help="Jump image identifcation and use a custom memory profile")
+    args.add_argument("-p", "--customprofile", required=False, help="Jump image identification and use a custom memory profile")
 
     args = vars(args.parse_args())
     main(args)

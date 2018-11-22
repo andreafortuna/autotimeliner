@@ -31,8 +31,6 @@ Simply clone the GitHub repository:
 
 ## Usage
 
-## Usage
-
 ```
 autotimeline.py [-h] -f IMAGEFILE [-t TIMEFRAME] [-p CUSTOMPROFILE]
 
@@ -44,10 +42,9 @@ optional arguments:
                         Timeframe used to filter the timeline (YYYY-MM-DD
                         ..YYYY-MM-DD)
   -p CUSTOMPROFILE, --customprofile CUSTOMPROFILE
-                        Jump image identifcation and use a custom memory
+                        Jump image identification and use a custom memory
                         profile
 ```
-
 
 ### Examples
 
@@ -64,3 +61,10 @@ Extract timeline from *TargetServerMemory.raw*, using a custom memory profile:
 `./autotimeline.py -f TargetServerMemory.raw -p Win2008R2SP1x64`
 
 All timelines will be saved as **$ORIGINALFILENAME-timeline.csv**.
+
+
+## TODO
+
+- Better image identification
+- Better error trapping
+

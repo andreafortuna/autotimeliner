@@ -15,7 +15,7 @@ Automagically extract forensic timeline from volatile memory dumps.
 
 ## How it works
 
-AutoTimeline automates this [workflow](https://www.andreafortuna.org/dfir/forensic-timeline-creation-my-own-workflow/):
+AutoTimeline automates this [workflow](https://andreafortuna.org/2018/02/16/forensic-timeline-creation-my-own-workflow/:
 
 - Identify correct volatility profile for the memory image.
 - Runs the **timeliner** plugin against volatile memory dump using volatility. 

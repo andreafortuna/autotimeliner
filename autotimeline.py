@@ -102,7 +102,7 @@ def main(args):
 
 
 if __name__ == '__main__':
-    version = "1.1.0"
+    version = "1.1.1"
     print("""
                 _     _______ _                _ _
      /\        | |   |__   __(_)              | (_)
@@ -113,7 +113,7 @@ if __name__ == '__main__':
 
 - Automagically extract forensic timeline from volatile memory dump -
 
-Andrea Fortuna - andrea@andreafortuna.org - https://www.andreafortuna.org
+Andrea Fortuna - andrea@andreafortuna.org - https://andreafortuna.org
 """)
 
 

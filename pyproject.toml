@@ -1,0 +1,36 @@
+[tool.poetry]
+name = "autotimeliner"
+version = "2.0.0"
+description = "Automagically extract forensic timeline from volatile memory dumps"
+authors = ["Andrea Fortuna <andrea@andreafortuna.org>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/andreafortuna/autotimeliner"
+repository = "https://github.com/andreafortuna/autotimeliner"
+keywords = ["forensics", "volatility", "memory", "timeline", "dfir"]
+classifiers = [
+    "Topic :: Security",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "Programming Language :: Python :: 3",
+]
+packages = [{ include = "autotimeliner", from = "src" }]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+volatility3 = ">=2.5"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-cov = "^5.0"
+
+[tool.poetry.scripts]
+autotimeliner = "autotimeliner.cli:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"

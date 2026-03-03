@@ -1,72 +1,144 @@
 # AutoTimeliner
 
-![Autotimeliner](https://i2.wp.com/www.andreafortuna.org/wp-content/uploads/2018/11/autotimeliner.gif)
+> **Automagically extract forensic timeline from volatile memory dumps.**
 
-Automagically extract forensic timeline from volatile memory dumps.
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
+[![Volatility3](https://img.shields.io/badge/volatility-3.x-orange)](https://github.com/volatilityfoundation/volatility3)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+AutoTimeliner runs three Volatility3 plugins against a Windows memory image
+and merges their output into a single, sorted CSV timeline:
+
+| Plugin | What it captures |
+|---|---|
+| `timeliner` | Timestamps from processes, registry, handles, etc. |
+| `mftscan` | MFT file entries found in memory |
+| `shellbags` | User folder-access history from registry hives |
+
+---
 
 ## Requirements
 
-- Python 3
-- Volatility
-- mactime (from SleuthKit)
+| Dependency | Version | Notes |
+|---|---|---|
+| Python | ≥ 3.9 | |
+| [Volatility3](https://github.com/volatilityfoundation/volatility3) | ≥ 2.5 | installed automatically via Poetry/pip |
+| [mactime](https://www.sleuthkit.org/) | any | **optional** — only needed for `--use-mactime` legacy mode |
 
-(Developed and tested on Debian 9.6 with **Volatility 2.6-1** and **sleuthkit 4.4.0-5**)
+> **Target OS of memory images**: Windows only (mftscan and shellbags are Windows-specific plugins).  
+> Linux/macOS image analysis is not currently supported.
 
-## How it works
-
-AutoTimeline automates this [workflow](https://andreafortuna.org/2018/02/16/forensic-timeline-creation-my-own-workflow/):
-
-- Identify correct volatility profile for the memory image.
-- Runs the **timeliner** plugin against volatile memory dump using volatility. 
-- Runs the **mftparser** volatility plugin, in order to extract $MFT from memory and generate a bodyfile. 
-- Runs the **shellbags** volatility plugin in order to generate a bodyfile of the user activity. (suggested by [Matteo Cantoni](https://github.com/mcantoni)). 
-- Merges the **timeliner**, **mftparser** and **shellbags** output files into a single bodyfile. 
-- Sorts and filters the bodyfile using **mactime** and exports data as CSV.
+---
 
 ## Installation
 
-Simply clone the GitHub repository:
+### With Poetry (recommended)
 
-`git clone https://github.com/andreafortuna/autotimeliner.git`
+```bash
+git clone https://github.com/andreafortuna/autotimeliner.git
+cd autotimeliner
+poetry install
+```
 
+### With pip
+
+```bash
+pip install .
+```
+
+---
 
 ## Usage
 
 ```
-autotimeline.py [-h] -f IMAGEFILE [-t TIMEFRAME] [-p CUSTOMPROFILE]
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -f IMAGEFILE, --imagefile IMAGEFILE
-                        Memory dump file
-  -t TIMEFRAME, --timeframe TIMEFRAME
-                        Timeframe used to filter the timeline (YYYY-MM-DD
-                        ..YYYY-MM-DD)
-  -p CUSTOMPROFILE, --customprofile CUSTOMPROFILE
-                        Jump image identification and use a custom memory
-                        profile
+autotimeliner -f IMAGEFILE [-t TIMEFRAME] [-o OUTPUT] [options]
 ```
+
+### Options
+
+| Flag | Description |
+|---|---|
+| `-f`, `--imagefile` | Memory dump file or glob (e.g. `'*.raw'`) |
+| `-t`, `--timeframe` | Filter to `YYYY-MM-DD..YYYY-MM-DD` range |
+| `-o`, `--output` | Output CSV path (default: `<imagefile>-timeline.csv`) |
+| `--skip-timeliner` | Skip the timeliner plugin |
+| `--skip-mftscan` | Skip the mftscan plugin |
+| `--skip-shellbags` | Skip the shellbags plugin |
+| `--use-mactime` | Legacy mode: use external `mactime` binary |
+| `-v`, `--verbose` | Enable debug logging |
+| `--version` | Print version and exit |
 
 ### Examples
 
-Extract timeline from *TargetServerMemory.raw*, limited to a timeframe from **2018-10-17** to **2018-10-21**:
+Extract a full timeline from a single image:
 
-`./autotimeline.py -f TargetServerMemory.raw -t 2018-10-17..2018-10-21`
+```bash
+autotimeliner -f TargetServer.raw
+```
 
-Extract timeline from all images in current directory, limited to a timeframe from 2018-10-17 to 2018-10-21:
+Filter to a specific time window:
 
-`./autotimeline.py -f ./*.raw -t 2018-10-17..2018-10-21`
+```bash
+autotimeliner -f TargetServer.raw -t 2023-10-17..2023-10-21
+```
 
-Extract timeline from *TargetServerMemory.raw*, using a custom memory profile:
+Process all `.raw` files in a directory, specifying output path:
 
-`./autotimeline.py -f TargetServerMemory.raw -p Win2008R2SP1x64`
+```bash
+autotimeliner -f './*.raw' -o /evidence/timeline.csv
+```
 
-All timelines will be saved as **$ORIGINALFILENAME-timeline.csv**.
+Run only timeliner and shellbags (skip MFT scan):
 
+```bash
+autotimeliner -f TargetServer.raw --skip-mftscan
+```
 
-## TODO
+---
 
-- Better image identification
-- Better error trapping
+## Output
 
+The output CSV has the following columns:
+
+| Column | Description |
+|---|---|
+| `Timestamp (UTC)` | ISO 8601 UTC timestamp |
+| `Source` | Plugin that produced the record |
+| `Description` | File name, path, process, or registry key |
+| `Detail` | Timestamp type, user, or extra context |
+| `Inode` | MFT inode number (where applicable) |
+| `UID` / `GID` | User/group identifiers |
+| `Size` | File size in bytes |
+| `Mode` | File mode string |
+
+---
+
+## Migrating from v1 (Volatility2)
+
+See [docs/migration.md](docs/migration.md) for a full comparison.
+
+Key changes:
+- **No more profile detection** — Volatility3 identifies the OS automatically.
+- **`-p / --customprofile` is deprecated** — it is silently ignored.
+- **`mftparser` → `mftscan`** — same data, new plugin name.
+- **No body files written to disk** — data flows through Python directly to CSV.
+- **`mactime` is now optional** — use `--use-mactime` for the old body-file workflow.
+
+---
+
+## Development
+
+```bash
+poetry install
+poetry run pytest
+```
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
+## Author
+
+Andrea Fortuna — [andrea@andreafortuna.org](mailto:andrea@andreafortuna.org) — [andreafortuna.org](https://andreafortuna.org)

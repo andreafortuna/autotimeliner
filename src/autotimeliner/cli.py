@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import sys
+import textwrap
 from glob import glob
 from pathlib import Path
 from typing import Optional
@@ -21,26 +22,91 @@ from autotimeliner.timeliner import create_timeline
 from autotimeliner.exporter import export_csv, export_mactime
 from autotimeliner.vol3_runner import identify_memory_profile
 
-BANNER = r"""
-            _     _______ _                _ _
- /\        | |   |__   __(_)              | (_)
-/  \  _   _| |_ ___ | |   _ _ __ ___   ___| |_ _ __   ___ _ __
-/ /\ \| | | | __/ _ \| |  | | '_ ` _ \ / _ \ | | '_ \ / _ \ '__|
-/ ____ \ |_| | || (_) | |  | | | | | | |  __/ | | | | |  __/ |
-/_/    \_\__,_|\__\___/|_|  |_|_| |_| |_|\___|_|_|_| |_|\___|_|
-
-  Automagically extract forensic timeline from volatile memory dump
-  Version {version}  —  Andrea Fortuna <andrea@andreafortuna.org>
+ASCII_LOGO = r"""
+     _         _        _______ _                _ _
+    / \  _   _| |_ ___ |__   __(_)              | (_)
+   / _ \| | | | __/ _ \   | |   _ _ __ ___   ___| |_ _ __   ___ _ __
+  / ___ \ |_| | || (_) |  | |  | | '_ ` _ \ / _ \ | | '_ \ / _ \ '__|
+ /_/   \_\__,_|\__\___/   |_|  |_|_| |_| |_|\___|_|_|_| |_|\___|_|
 """
+
+SUCCESS_LEVEL = 25
+
+
+class _MalhuntStyleFormatter(logging.Formatter):
+    _RESET = "\033[0m"
+    _LEVEL_COLORS = {
+        "DEBUG": "\033[37m",
+        "INFO": "\033[36m",
+        "SUCCESS": "\033[32m",
+        "WARNING": "\033[33m",
+        "ERROR": "\033[31m",
+        "CRITICAL": "\033[1;31m",
+    }
+
+    def __init__(self, use_colors: bool) -> None:
+        super().__init__("%(levelname)-8s | %(name)s:%(funcName)s:%(lineno)d - %(message)s")
+        self.use_colors = use_colors
+
+    def format(self, record: logging.LogRecord) -> str:
+        if not self.use_colors:
+            return super().format(record)
+
+        level = record.levelname
+        color = self._LEVEL_COLORS.get(level, "")
+        if color:
+            record.levelname = f"{color}{level}{self._RESET}"
+        try:
+            return super().format(record)
+        finally:
+            record.levelname = level
+
+
+def _install_success_level() -> None:
+    logging.addLevelName(SUCCESS_LEVEL, "SUCCESS")
+
+    if hasattr(logging.Logger, "success"):
+        return
+
+    def _success(self: logging.Logger, message: str, *args: object, **kwargs: object) -> None:
+        if self.isEnabledFor(SUCCESS_LEVEL):
+            self._log(SUCCESS_LEVEL, message, args, **kwargs)
+
+    logging.Logger.success = _success  # type: ignore[attr-defined]
+
+
+def _render_banner(version: str) -> str:
+    title = f"AUTOTIMELINER v{version} - Timeline Extraction with Volatility3"
+    top = "╔" + "═" * (len(title) + 4) + "╗"
+    middle = f"║  {title}  ║"
+    bottom = "╚" + "═" * (len(title) + 4) + "╝"
+
+    return textwrap.dedent(
+        f"""\
+        {top}
+        {middle}
+        {bottom}
+
+        {ASCII_LOGO}
+        Extract timelines from memory dumps with Volatility3!
+
+        Andrea Fortuna
+        andrea@andreafortuna.org
+        https://andreafortuna.org
+        """
+    )
 
 
 def _setup_logging(verbose: bool) -> None:
+    _install_success_level()
     level = logging.DEBUG if verbose else logging.INFO
-    logging.basicConfig(
-        level=level,
-        format="%(asctime)s  %(levelname)-8s  %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(_MalhuntStyleFormatter(use_colors=sys.stderr.isatty()))
+
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.setLevel(level)
+    root.addHandler(handler)
 
 
 def _bold(text: str) -> str:
@@ -59,15 +125,22 @@ def process_image(
     log = logging.getLogger(__name__)
     out_path = output or image_path.parent / (image_path.name + "-timeline.csv")
 
-    print(_bold(f"\n*** Processing image: {image_path}"))
-    print("    " + "-" * 50)
+    log.info("=" * 70)
+    log.info("Processing image: %s", image_path)
+    log.info("=" * 70)
 
-    print(_bold("*** Identifying memory profile (Volatility3 automagic)…"))
+    log.info("Identifying memory dump OS and version...")
     profile = identify_memory_profile(image_path)
     os_family = profile.get("os") or "unknown"
     profile_hint = profile.get("profile") or "n/a"
     probe = profile.get("probe_plugin") or "n/a"
-    print(_bold(f"*** Detected OS family: {os_family} | profile hint: {profile_hint} | probe: {probe}"))
+    log.log(
+        SUCCESS_LEVEL,
+        "Memory OS: %s | profile hint: %s | probe: %s",
+        os_family,
+        profile_hint,
+        probe,
+    )
 
     effective_skip_mftscan = skip_mftscan
     effective_skip_shellbags = skip_shellbags
@@ -77,7 +150,7 @@ def process_image(
         effective_skip_shellbags = True
         log.warning("Detected non-Windows image (%s): forcing --skip-mftscan and --skip-shellbags", os_family)
 
-    print(_bold("*** Collecting timeline data from Volatility3 plugins…"))
+    log.info("Collecting timeline data from Volatility3 plugins...")
     records = create_timeline(
         image_path=image_path,
         run_timeliner=not skip_timeliner,
@@ -86,24 +159,24 @@ def process_image(
     )
 
     if not records:
-        print(_bold("*** WARNING: No records collected — check that the image is a supported Windows memory dump."))
+        log.warning("No records collected - check that the image is a supported Windows memory dump")
         return
 
-    print(_bold(f"*** {len(records)} records collected. Writing output…"))
+    log.log(SUCCESS_LEVEL, "%d records collected. Writing output...", len(records))
 
     if use_mactime:
-        print(_bold("*** Legacy mode: using external mactime binary…"))
+        log.info("Legacy mode enabled: using external mactime binary")
         result = export_mactime(records, out_path, timeframe)
     else:
         result = export_csv(records, out_path, timeframe)
 
-    print(_bold(f"*** Timeline saved to: {result}"))
+    log.log(SUCCESS_LEVEL, "Timeline saved to: %s", result)
 
 
 def main() -> None:
     import argparse
 
-    print(BANNER.format(version=__version__))
+    print(_render_banner(__version__))
 
     parser = argparse.ArgumentParser(
         prog="autotimeliner",
@@ -179,7 +252,7 @@ def main() -> None:
 
     image_files = glob(args.imagefile)
     if not image_files:
-        print(f"[ERROR] No files matched: {args.imagefile}", file=sys.stderr)
+        logging.getLogger(__name__).error("No files matched: %s", args.imagefile)
         sys.exit(1)
 
     output = Path(args.output) if args.output else None

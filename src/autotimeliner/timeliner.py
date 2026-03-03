@@ -25,6 +25,7 @@ from typing import Any, Callable, Optional
 from .vol3_runner import run_plugin, get_plugin_class
 
 log = logging.getLogger(__name__)
+SUCCESS_LEVEL = 25
 
 
 # ---------------------------------------------------------------------------
@@ -113,7 +114,7 @@ def collect_timeliner(image_path: str | Path) -> list[TimelineRecord]:
                 detail=f"{ts_col}: {ts.isoformat()}",
             ))
 
-    log.info("timeliner: %d records collected", len(records))
+    log.log(SUCCESS_LEVEL, "Timeliner scan complete: %d records collected", len(records))
     return records
 
 
@@ -157,7 +158,7 @@ def collect_mftscan(image_path: str | Path) -> list[TimelineRecord]:
                 size=size,
             ))
 
-    log.info("mftscan: %d records collected", len(records))
+    log.log(SUCCESS_LEVEL, "MFT scan complete: %d records collected", len(records))
     return records
 
 
@@ -196,7 +197,7 @@ def collect_shellbags(image_path: str | Path) -> list[TimelineRecord]:
                 detail=f"user={user} | {ts_col}",
             ))
 
-    log.info("shellbags: %d records collected", len(records))
+    log.log(SUCCESS_LEVEL, "ShellBags scan complete: %d records collected", len(records))
     return records
 
 
@@ -215,14 +216,44 @@ def create_timeline(
     Returns records sorted by timestamp (ascending).
     """
     records: list[TimelineRecord] = []
+    total_phases = sum([run_timeliner, run_mftscan, run_shellbags])
+    if total_phases == 0:
+        log.warning("No plugins selected for timeline extraction")
+        return records
+
+    log.info("=" * 70)
+    log.info("Starting comprehensive timeline scan")
+    log.info("=" * 70)
+
+    scan_phases: list[str] = []
+    phase = 1
 
     if run_timeliner:
-        records.extend(collect_timeliner(image_path))
+        log.info("📊 Phase %d/%d: Timeliner Scanning", phase, total_phases)
+        timeliner_records = collect_timeliner(image_path)
+        records.extend(timeliner_records)
+        scan_phases.append(f"Timeliner: {len(timeliner_records)} records")
+        phase += 1
+
     if run_mftscan:
-        records.extend(collect_mftscan(image_path))
+        log.info("🧾 Phase %d/%d: MFT Scanning", phase, total_phases)
+        mftscan_records = collect_mftscan(image_path)
+        records.extend(mftscan_records)
+        scan_phases.append(f"MFTScan: {len(mftscan_records)} records")
+        phase += 1
+
     if run_shellbags:
-        records.extend(collect_shellbags(image_path))
+        log.info("👜 Phase %d/%d: ShellBags Scanning", phase, total_phases)
+        shellbags_records = collect_shellbags(image_path)
+        records.extend(shellbags_records)
+        scan_phases.append(f"ShellBags: {len(shellbags_records)} records")
 
     records.sort(key=lambda r: r.timestamp)
-    log.info("Total timeline records: %d", len(records))
+
+    log.info("=" * 70)
+    log.info("Scan Summary:")
+    for phase_summary in scan_phases:
+        log.info("  - %s", phase_summary)
+    log.log(SUCCESS_LEVEL, "Total timeline records: %d", len(records))
+    log.info("=" * 70)
     return records

@@ -27,6 +27,9 @@ autotimeliner --help
 
 ## CLI Reference
 
+At startup, AutoTimeliner automatically downloads/installs Volatility3 symbol
+tables (Windows/macOS/Linux) and performs a best-effort memory OS/profile probe.
+
 ```
 autotimeliner -f IMAGEFILE [-t TIMEFRAME] [-o OUTPUT] [options]
 ```

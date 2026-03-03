@@ -19,6 +19,7 @@ from typing import Optional
 from autotimeliner import __version__
 from autotimeliner.timeliner import create_timeline
 from autotimeliner.exporter import export_csv, export_mactime
+from autotimeliner.vol3_runner import identify_memory_profile
 
 BANNER = r"""
             _     _______ _                _ _
@@ -61,12 +62,27 @@ def process_image(
     print(_bold(f"\n*** Processing image: {image_path}"))
     print("    " + "-" * 50)
 
+    print(_bold("*** Identifying memory profile (Volatility3 automagic)…"))
+    profile = identify_memory_profile(image_path)
+    os_family = profile.get("os") or "unknown"
+    profile_hint = profile.get("profile") or "n/a"
+    probe = profile.get("probe_plugin") or "n/a"
+    print(_bold(f"*** Detected OS family: {os_family} | profile hint: {profile_hint} | probe: {probe}"))
+
+    effective_skip_mftscan = skip_mftscan
+    effective_skip_shellbags = skip_shellbags
+    if os_family != "windows":
+        # mftscan/shellbags are Windows plugins
+        effective_skip_mftscan = True
+        effective_skip_shellbags = True
+        log.warning("Detected non-Windows image (%s): forcing --skip-mftscan and --skip-shellbags", os_family)
+
     print(_bold("*** Collecting timeline data from Volatility3 plugins…"))
     records = create_timeline(
         image_path=image_path,
         run_timeliner=not skip_timeliner,
-        run_mftscan=not skip_mftscan,
-        run_shellbags=not skip_shellbags,
+        run_mftscan=not effective_skip_mftscan,
+        run_shellbags=not effective_skip_shellbags,
     )
 
     if not records:
@@ -158,7 +174,7 @@ def main() -> None:
     if args.customprofile:
         logging.getLogger(__name__).warning(
             "--customprofile is a Volatility2 concept and is ignored in this version. "
-            "Volatility3 detects the OS automatically."
+            "Volatility3 identifies the memory profile/OS via automagic and symbol tables."
         )
 
     image_files = glob(args.imagefile)

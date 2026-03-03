@@ -11,7 +11,7 @@ and v2 (Volatility3-based) and how to update your workflows.
 
 | v1 (Volatility2) | v2 (Volatility3) | Notes |
 |---|---|---|
-| `imageinfo` (profile detection) | Removed — automatic | Volatility3 detects the OS via automagic layers |
+| `imageinfo` (profile detection) | Replaced by Vol3 probe | AutoTimeliner performs best-effort OS/profile probing via Volatility3 plugins |
 | `timeliner --output=body` | `timeliner.Timeliner` | Same concept, TreeGrid output |
 | `mftparser --output=body` | `windows.mftscan.MFTScan` | Scans memory for in-memory MFT FILE objects |
 | `shellbags --output=body` | `windows.shellbags.ShellBags` | Same registry data, new API |
@@ -21,6 +21,7 @@ and v2 (Volatility3-based) and how to update your workflows.
 | v1 concept | v2 behaviour |
 |---|---|
 | `--profile` / `-p` | **Deprecated and ignored.** Volatility3 uses automagic OS/layer detection. Passing `-p` produces a deprecation warning but does not fail. |
+| Manual symbol table setup | **Removed.** AutoTimeliner downloads and installs Volatility3 Windows/macOS/Linux symbol packs automatically. |
 | Body files written to disk | **Removed.** Data flows internally through Python — no `.body` intermediate files are created (unless `--use-mactime` is used). |
 | `which volatility` binary detection | **Removed.** Volatility3 is imported as a Python library; no shell binary is needed. |
 | `mactime` required | **Optional.** Pure-Python merge and filter is the default. Pass `--use-mactime` to restore the old body-file behaviour if needed. |
@@ -56,7 +57,7 @@ and v2 (Volatility3-based) and how to update your workflows.
 ```bash
 autotimeliner -f memory.raw -t 2023-10-17..2023-10-21
 # Internally:
-#   1. volatility3 Python API — automagic OS detection (no shell call)
+#   1. volatility3 Python API — automatic symbol table setup + OS/profile probe
 #   2. volatility3.plugins.timeliner.Timeliner    → rows in memory
 #   3. volatility3.plugins.windows.mftscan.MFTScan → rows in memory
 #   4. volatility3.plugins.windows.shellbags.ShellBags → rows in memory

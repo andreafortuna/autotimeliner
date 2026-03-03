@@ -18,7 +18,11 @@ Key design decisions
 
 from __future__ import annotations
 
+import json
 import logging
+import shutil
+import urllib.request
+import zipfile
 from pathlib import Path
 from typing import Any, Callable, Optional, Type
 
@@ -30,6 +34,133 @@ log = logging.getLogger(__name__)
 
 _vol3_ready: bool = False
 _plugin_list: dict[str, Type] = {}
+
+SYMBOL_TABLE_URLS: dict[str, str] = {
+    "windows": "https://downloads.volatilityfoundation.org/volatility3/symbols/windows.zip",
+    "mac": "https://downloads.volatilityfoundation.org/volatility3/symbols/mac.zip",
+    "linux": "https://downloads.volatilityfoundation.org/volatility3/symbols/linux.zip",
+}
+
+DEFAULT_SYMBOLS_DIR = Path.home() / ".cache" / "autotimeliner" / "volatility3" / "symbols"
+
+
+def _symbol_state_path(symbols_dir: Path) -> Path:
+    return symbols_dir / ".autotimeliner_symbols.json"
+
+
+def _read_symbol_state(symbols_dir: Path) -> dict[str, Any]:
+    state_path = _symbol_state_path(symbols_dir)
+    if not state_path.exists():
+        return {}
+    try:
+        return json.loads(state_path.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def _write_symbol_state(symbols_dir: Path, state: dict[str, Any]) -> None:
+    symbols_dir.mkdir(parents=True, exist_ok=True)
+    _symbol_state_path(symbols_dir).write_text(
+        json.dumps(state, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+
+def ensure_symbol_tables(symbols_dir: str | Path | None = None) -> Path:
+    """Ensure Volatility3 symbol tables are available locally.
+
+    Downloads and extracts Windows/macOS/Linux symbol archives from the
+    Volatility Foundation mirror into ``symbols_dir`` (default:
+    ``~/.cache/autotimeliner/volatility3/symbols``).
+    """
+    target_dir = Path(symbols_dir) if symbols_dir else DEFAULT_SYMBOLS_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    state = _read_symbol_state(target_dir)
+    updated_state = dict(state)
+
+    for family, url in SYMBOL_TABLE_URLS.items():
+        archive_name = f"{family}.zip"
+        archive_path = target_dir / archive_name
+        family_state = state.get(family, {}) if isinstance(state.get(family), dict) else {}
+
+        if family_state.get("source") == url and family_state.get("installed") is True:
+            continue
+
+        log.info("Downloading Volatility3 symbols: %s", url)
+        with urllib.request.urlopen(url) as response, archive_path.open("wb") as out_file:
+            shutil.copyfileobj(response, out_file)
+
+        log.info("Installing Volatility3 symbols for %s", family)
+        with zipfile.ZipFile(archive_path, "r") as zip_ref:
+            zip_ref.extractall(target_dir)
+
+        updated_state[family] = {
+            "source": url,
+            "archive": archive_name,
+            "installed": True,
+        }
+
+    if updated_state != state:
+        _write_symbol_state(target_dir, updated_state)
+
+    return target_dir
+
+
+def identify_memory_profile(image_path: str | Path) -> dict[str, Optional[str]]:
+    """Best-effort memory profile identification for Volatility3.
+
+    Volatility3 does not use Volatility2-style profiles. This helper probes
+    lightweight OS-specific plugins to infer the memory image family and returns
+    metadata that can be displayed to the user.
+    """
+    initialize_vol3()
+
+    candidates: list[tuple[str, str]] = [
+        ("windows", "windows.info.Info"),
+        ("linux", "linux.banners.Banners"),
+        ("mac", "mac.bash.Bash"),
+    ]
+
+    for os_family, plugin_name in candidates:
+        plugin_class = get_plugin_class(plugin_name)
+        if plugin_class is None:
+            continue
+
+        try:
+            rows = run_plugin(image_path=image_path, plugin_class=plugin_class)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("Profile probe %s failed: %s", plugin_name, exc)
+            continue
+
+        if not rows:
+            continue
+
+        profile_hint: Optional[str] = None
+        first = rows[0]
+        if os_family == "windows":
+            version = first.get("NTBuildLab") or first.get("BuildLab") or first.get("NtBuildLab")
+            if version:
+                profile_hint = f"windows:{version}"
+            else:
+                profile_hint = "windows"
+        elif os_family == "linux":
+            banner = first.get("Banner")
+            profile_hint = f"linux:{banner}" if banner else "linux"
+        elif os_family == "mac":
+            profile_hint = "mac"
+
+        return {
+            "os": os_family,
+            "profile": profile_hint,
+            "probe_plugin": plugin_name,
+        }
+
+    return {
+        "os": "unknown",
+        "profile": None,
+        "probe_plugin": None,
+    }
 
 
 def _ensure_vol3() -> None:
@@ -61,6 +192,14 @@ def initialize_vol3() -> None:
     from volatility3.framework import constants
 
     framework.require_interface_version(2, 0, 0)
+
+    # Ensure symbol packs are present and available to Volatility3
+    symbols_dir = ensure_symbol_tables()
+    symbol_path = str(symbols_dir)
+    if hasattr(constants, "SYMBOL_BASEPATHS") and symbol_path not in constants.SYMBOL_BASEPATHS:
+        constants.SYMBOL_BASEPATHS = [symbol_path, *list(constants.SYMBOL_BASEPATHS)]
+    if hasattr(constants, "SYMBOL_PATHS") and symbol_path not in constants.SYMBOL_PATHS:
+        constants.SYMBOL_PATHS = [symbol_path, *list(constants.SYMBOL_PATHS)]
 
     # Extend the plugin search path (idempotent-safe: only add new entries)
     extra = list(constants.PLUGINS_PATH)

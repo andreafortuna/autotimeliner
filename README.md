@@ -118,7 +118,8 @@ The output CSV has the following columns:
 See [docs/migration.md](docs/migration.md) for a full comparison.
 
 Key changes:
-- **No more profile detection** — Volatility3 identifies the OS automatically.
+- **Volatility3 profile identification** — AutoTimeliner performs a best-effort OS/profile probe via Volatility3 plugins.
+- **Automatic symbol tables setup** — Windows/macOS/Linux symbol packs are downloaded and installed automatically.
 - **`-p / --customprofile` is deprecated** — it is silently ignored.
 - **`mftparser` → `mftscan`** — same data, new plugin name.
 - **No body files written to disk** — data flows through Python directly to CSV.

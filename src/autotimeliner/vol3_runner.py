@@ -23,6 +23,7 @@ import logging
 import shutil
 import urllib.request
 import zipfile
+from importlib import import_module
 from pathlib import Path
 from typing import Any, Callable, Optional, Type
 
@@ -34,6 +35,15 @@ log = logging.getLogger(__name__)
 
 _vol3_ready: bool = False
 _plugin_list: dict[str, Type] = {}
+
+REQUIRED_PLUGIN_MODULES: tuple[str, ...] = (
+    "volatility3.plugins.timeliner",
+    "volatility3.plugins.windows.mftscan",
+    "volatility3.plugins.windows.shellbags",
+    "volatility3.plugins.windows.info",
+    "volatility3.plugins.linux.banners",
+    "volatility3.plugins.mac.bash",
+)
 
 SYMBOL_TABLE_URLS: dict[str, str] = {
     "windows": "https://downloads.volatilityfoundation.org/volatility3/symbols/windows.zip",
@@ -208,8 +218,13 @@ def initialize_vol3() -> None:
         p for p in extra if p not in existing
     ]
 
-    # Load all plugins; failures (missing yara, Crypto, …) are tolerated
-    framework.import_files(volatility3.plugins, True)
+    # Load only plugin modules used by AutoTimeliner to avoid noisy optional
+    # dependency warnings (e.g. yara-x / yara-python for YARA scan plugins).
+    for module_name in REQUIRED_PLUGIN_MODULES:
+        try:
+            import_module(module_name)
+        except Exception as exc:  # noqa: BLE001
+            log.debug("Unable to import plugin module %s: %s", module_name, exc)
 
     _plugin_list = framework.list_plugins()
     log.debug("Volatility3 initialised — %d plugins available", len(_plugin_list))

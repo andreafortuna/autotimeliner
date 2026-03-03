@@ -108,6 +108,10 @@ def _setup_logging(verbose: bool) -> None:
     root.setLevel(level)
     root.addHandler(handler)
 
+    # Volatility may emit YARA availability messages even when YARA-based
+    # plugins are not used by AutoTimeliner.
+    logging.getLogger("volatility3.plugins.yarascan").setLevel(logging.ERROR)
+
 
 def _bold(text: str) -> str:
     return f"\033[1m{text}\033[0m"

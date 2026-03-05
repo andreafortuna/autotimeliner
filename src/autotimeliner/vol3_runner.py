@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import os
 import shutil
 import tempfile
@@ -119,13 +120,19 @@ def _profile_cache_key(image_path: str | Path) -> str:
 
 def _guess_os_from_filename(image_path: str | Path) -> Optional[str]:
     name = Path(image_path).name.lower()
+    # Split on non-alphanumeric characters so each segment is matched as a
+    # whole token.  This prevents "win" from matching inside "darwin".
+    name_tokens = set(re.split(r"[^a-z0-9]+", name))
+    # "mac" is checked first so that ambiguous filenames (e.g. one that
+    # contains both "darwin" and "win" as tokens) resolve to mac rather than
+    # windows.
     keyword_map = {
-        "windows": ["windows", "win", "w10", "w11", "server", "memdump"],
-        "linux": ["linux", "ubuntu", "debian", "kali", "centos", "rhel"],
         "mac": ["mac", "macos", "osx", "darwin"],
+        "linux": ["linux", "ubuntu", "debian", "kali", "centos", "rhel"],
+        "windows": ["windows", "win", "w10", "w11", "server", "memdump"],
     }
     for family, keywords in keyword_map.items():
-        if any(token in name for token in keywords):
+        if any(token in name_tokens for token in keywords):
             return family
     return None
 

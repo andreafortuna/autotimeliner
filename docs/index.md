@@ -4,12 +4,34 @@
 
 AutoTimeliner automates the creation of a forensic timeline from a Windows volatile memory dump.
 
-It runs three **Volatility3** plugins and merges their output into a single sorted CSV:
+It runs multiple **Volatility3** plugins and merges their output into a single sorted CSV:
 
 ```
-timeliner  ──┐
-mftscan    ──┼──► merge & sort ──► filter by timeframe ──► timeline.csv
-shellbags  ──┘
+┌─────────────────────────────────────────────────┐
+│ Core Timeline Plugins                           │
+│   timeliner, mftscan, shellbags                 │
+├─────────────────────────────────────────────────┤
+│ Process & Execution Analysis                    │
+│   psscan, cmdline, userassist                   │
+├─────────────────────────────────────────────────┤
+│ Network Analysis                                │
+│   netscan                                       │
+├─────────────────────────────────────────────────┤
+│ Malware Detection                               │
+│   malfind, svcscan                              │
+├─────────────────────────────────────────────────┤
+│ Extended Plugins (opt-in)                       │
+│   dlllist, filescan, handles, envars            │
+└─────────────────────────────────────────────────┘
+                      │
+                      ▼
+          merge & sort by timestamp
+                      │
+                      ▼
+           filter by timeframe
+                      │
+                      ▼
+               timeline.csv
 ```
 
 ## Contents

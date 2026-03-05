@@ -125,6 +125,16 @@ def process_image(
     skip_timeliner: bool,
     skip_mftscan: bool,
     skip_shellbags: bool,
+    skip_psscan: bool,
+    skip_cmdline: bool,
+    skip_netscan: bool,
+    skip_userassist: bool,
+    with_dlllist: bool,
+    skip_svcscan: bool,
+    with_filescan: bool,
+    skip_malfind: bool,
+    with_handles: bool,
+    with_envars: bool,
 ) -> None:
     log = logging.getLogger(__name__)
     out_path = output or image_path.parent / (image_path.name + "-timeline.csv")
@@ -148,11 +158,32 @@ def process_image(
 
     effective_skip_mftscan = skip_mftscan
     effective_skip_shellbags = skip_shellbags
+    effective_skip_psscan = skip_psscan
+    effective_skip_cmdline = skip_cmdline
+    effective_skip_netscan = skip_netscan
+    effective_skip_userassist = skip_userassist
+    effective_with_dlllist = with_dlllist
+    effective_skip_svcscan = skip_svcscan
+    effective_with_filescan = with_filescan
+    effective_skip_malfind = skip_malfind
+    effective_with_handles = with_handles
+    effective_with_envars = with_envars
+    
     if os_family != "windows":
-        # mftscan/shellbags are Windows plugins
+        # Windows-specific plugins
         effective_skip_mftscan = True
         effective_skip_shellbags = True
-        log.warning("Detected non-Windows image (%s): forcing --skip-mftscan and --skip-shellbags", os_family)
+        effective_skip_psscan = True
+        effective_skip_cmdline = True
+        effective_skip_netscan = True
+        effective_skip_userassist = True
+        effective_with_dlllist = False
+        effective_skip_svcscan = True
+        effective_with_filescan = False
+        effective_skip_malfind = True
+        effective_with_handles = False
+        effective_with_envars = False
+        log.warning("Detected non-Windows image (%s): Windows-specific plugins disabled", os_family)
 
     log.info("Collecting timeline data from Volatility3 plugins...")
     records = create_timeline(
@@ -160,6 +191,16 @@ def process_image(
         run_timeliner=not skip_timeliner,
         run_mftscan=not effective_skip_mftscan,
         run_shellbags=not effective_skip_shellbags,
+        run_psscan=not effective_skip_psscan,
+        run_cmdline=not effective_skip_cmdline,
+        run_netscan=not effective_skip_netscan,
+        run_userassist=not effective_skip_userassist,
+        run_dlllist=effective_with_dlllist,
+        run_svcscan=not effective_skip_svcscan,
+        run_filescan=effective_with_filescan,
+        run_malfind=not effective_skip_malfind,
+        run_handles=effective_with_handles,
+        run_envars=effective_with_envars,
     )
 
     if not records:
@@ -230,6 +271,56 @@ def main() -> None:
         help="Skip the shellbags plugin",
     )
     parser.add_argument(
+        "--skip-psscan",
+        action="store_true",
+        help="Skip the psscan plugin (process scanning)",
+    )
+    parser.add_argument(
+        "--skip-cmdline",
+        action="store_true",
+        help="Skip the cmdline plugin (command line arguments)",
+    )
+    parser.add_argument(
+        "--skip-netscan",
+        action="store_true",
+        help="Skip the netscan plugin (network connections)",
+    )
+    parser.add_argument(
+        "--skip-userassist",
+        action="store_true",
+        help="Skip the userassist plugin (program execution evidence)",
+    )
+    parser.add_argument(
+        "--with-dlllist",
+        action="store_true",
+        help="Enable dlllist plugin (DLL analysis - can be slow)",
+    )
+    parser.add_argument(
+        "--skip-svcscan",
+        action="store_true",
+        help="Skip the svcscan plugin (Windows services)",
+    )
+    parser.add_argument(
+        "--with-filescan",
+        action="store_true",
+        help="Enable filescan plugin (open files - generates many records)",
+    )
+    parser.add_argument(
+        "--skip-malfind",
+        action="store_true",
+        help="Skip the malfind plugin (malware/injection detection)",
+    )
+    parser.add_argument(
+        "--with-handles",
+        action="store_true",
+        help="Enable handles plugin (open handles - generates many records)",
+    )
+    parser.add_argument(
+        "--with-envars",
+        action="store_true",
+        help="Enable envars plugin (environment variables)",
+    )
+    parser.add_argument(
         "--use-mactime",
         action="store_true",
         help="Legacy mode: use the external mactime binary (requires SleuthKit)",
@@ -271,6 +362,16 @@ def main() -> None:
                 skip_timeliner=args.skip_timeliner,
                 skip_mftscan=args.skip_mftscan,
                 skip_shellbags=args.skip_shellbags,
+                skip_psscan=args.skip_psscan,
+                skip_cmdline=args.skip_cmdline,
+                skip_netscan=args.skip_netscan,
+                skip_userassist=args.skip_userassist,
+                with_dlllist=args.with_dlllist,
+                skip_svcscan=args.skip_svcscan,
+                with_filescan=args.with_filescan,
+                skip_malfind=args.skip_malfind,
+                with_handles=args.with_handles,
+                with_envars=args.with_envars,
             )
         except Exception as exc:  # noqa: BLE001
             logging.getLogger(__name__).error("Failed to process %s: %s", image_file, exc, exc_info=args.verbose)

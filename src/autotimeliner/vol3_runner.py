@@ -21,7 +21,9 @@ from __future__ import annotations
 import json
 import logging
 import re
+import os
 import shutil
+import tempfile
 import urllib.request
 import zipfile
 from importlib import import_module
@@ -88,10 +90,23 @@ def _read_profile_cache() -> dict[str, dict[str, Any]]:
 
 def _write_profile_cache(data: dict[str, dict[str, Any]]) -> None:
     PROFILE_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    PROFILE_CACHE_PATH.write_text(
-        json.dumps(data, indent=2, sort_keys=True),
-        encoding="utf-8",
+    fd, tmp_str = tempfile.mkstemp(
+        dir=PROFILE_CACHE_PATH.parent,
+        prefix=".autotimeliner_profile_cache.",
+        suffix=".tmp",
     )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(data, indent=2, sort_keys=True))
+            fh.flush()
+            os.fsync(fh.fileno())
+        Path(tmp_str).replace(PROFILE_CACHE_PATH)
+    except Exception:
+        try:
+            os.unlink(tmp_str)
+        except OSError:
+            pass
+        raise
 
 
 def _profile_cache_key(image_path: str | Path) -> str:
@@ -149,10 +164,24 @@ def _read_symbol_state(symbols_dir: Path) -> dict[str, Any]:
 
 def _write_symbol_state(symbols_dir: Path, state: dict[str, Any]) -> None:
     symbols_dir.mkdir(parents=True, exist_ok=True)
-    _symbol_state_path(symbols_dir).write_text(
-        json.dumps(state, indent=2, sort_keys=True),
-        encoding="utf-8",
+    state_path = _symbol_state_path(symbols_dir)
+    fd, tmp_str = tempfile.mkstemp(
+        dir=symbols_dir,
+        prefix=".autotimeliner_symbols.",
+        suffix=".tmp",
     )
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(state, indent=2, sort_keys=True))
+            fh.flush()
+            os.fsync(fh.fileno())
+        Path(tmp_str).replace(state_path)
+    except Exception:
+        try:
+            os.unlink(tmp_str)
+        except OSError:
+            pass
+        raise
 
 
 def ensure_symbol_tables(symbols_dir: str | Path | None = None) -> Path:

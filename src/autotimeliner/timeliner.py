@@ -74,6 +74,15 @@ def _progress(label: str) -> Callable[[float, str], None]:
     return _cb
 
 
+def _pick_plugin_class(candidates: list[str]) -> Optional[type]:
+    """Return the first available plugin class from a list of dotted names."""
+    for name in candidates:
+        plugin_class = get_plugin_class(name)
+        if plugin_class is not None:
+            return plugin_class
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Plugin collectors
 # ---------------------------------------------------------------------------
@@ -640,12 +649,234 @@ def collect_envars(image_path: str | Path) -> list[TimelineRecord]:
     return records
 
 
+def collect_linux_pslist(image_path: str | Path) -> list[TimelineRecord]:
+    """Run a Linux PsList-equivalent plugin and normalize process records."""
+    candidates = [
+        "linux.pslist.PsList",
+        "linux.pslist.Pslist",
+    ]
+    plugin_class = _pick_plugin_class(candidates)
+    if plugin_class is None:
+        log.warning("Linux pslist plugin not available - skipping")
+        return []
+
+    log.info("Running Linux pslist plugin...")
+    rows = run_plugin(image_path, plugin_class, progress_callback=_progress("linux.pslist"))
+
+    records: list[TimelineRecord] = []
+    for row in rows:
+        pid = str(row.get("PID", ""))
+        ppid = str(row.get("PPID", ""))
+        name = str(row.get("COMM") or row.get("Name") or row.get("Process") or "")
+
+        for ts_col, event_type in [
+            ("Start Time", "Process Started"),
+            ("Create Time", "Process Started"),
+            ("Exit Time", "Process Exited"),
+        ]:
+            ts = _to_utc(row.get(ts_col))
+            if ts is None:
+                continue
+            records.append(TimelineRecord(
+                timestamp=ts,
+                source="linux.pslist",
+                description=f"{event_type}: {name}",
+                detail=f"PID={pid} PPID={ppid}",
+            ))
+
+    log.log(SUCCESS_LEVEL, "Linux PsList complete: %d records collected", len(records))
+    return records
+
+
+def collect_linux_bash(image_path: str | Path) -> list[TimelineRecord]:
+    """Run Linux bash history plugin and normalize command history events."""
+    plugin_class = _pick_plugin_class(["linux.bash.Bash"])
+    if plugin_class is None:
+        log.warning("Linux bash plugin not available - skipping")
+        return []
+
+    log.info("Running Linux bash plugin...")
+    rows = run_plugin(image_path, plugin_class, progress_callback=_progress("linux.bash"))
+
+    # For rows without timestamp we keep epoch 0 to retain useful context.
+    records: list[TimelineRecord] = []
+    epoch_zero = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+    for row in rows:
+        command = str(row.get("Command") or row.get("Cmd") or row.get("History") or "")
+        task = str(row.get("Task") or row.get("Process") or "")
+        pid = str(row.get("PID", ""))
+
+        if not command:
+            continue
+
+        ts = _to_utc(
+            row.get("Command Time")
+            or row.get("Time")
+            or row.get("Timestamp")
+            or row.get("History Time")
+        )
+        records.append(TimelineRecord(
+            timestamp=ts or epoch_zero,
+            source="linux.bash",
+            description="Shell Command Executed",
+            detail=f"PID={pid} Task={task} Command={command}",
+        ))
+
+    log.log(SUCCESS_LEVEL, "Linux bash complete: %d records collected", len(records))
+    return records
+
+
+def collect_linux_lsof(image_path: str | Path) -> list[TimelineRecord]:
+    """Run Linux Lsof plugin and normalize open-file evidence."""
+    plugin_class = _pick_plugin_class(["linux.lsof.Lsof"])
+    if plugin_class is None:
+        log.warning("Linux lsof plugin not available - skipping")
+        return []
+
+    log.info("Running Linux lsof plugin...")
+    rows = run_plugin(image_path, plugin_class, progress_callback=_progress("linux.lsof"))
+
+    records: list[TimelineRecord] = []
+    epoch_zero = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+    for row in rows:
+        pid = str(row.get("PID", ""))
+        process = str(row.get("Process") or row.get("Task") or "")
+        fd = str(row.get("FD", ""))
+        path = str(row.get("Path") or row.get("Name") or "")
+
+        if not path:
+            continue
+
+        records.append(TimelineRecord(
+            timestamp=epoch_zero,
+            source="linux.lsof",
+            description=f"Open File: {path}",
+            detail=f"Process={process} PID={pid} FD={fd}",
+        ))
+
+    log.log(SUCCESS_LEVEL, "Linux Lsof complete: %d records collected", len(records))
+    return records
+
+
+def collect_mac_pslist(image_path: str | Path) -> list[TimelineRecord]:
+    """Run a macOS PsList-equivalent plugin and normalize process events."""
+    candidates = [
+        "mac.pslist.PsList",
+        "mac.pslist.Pslist",
+    ]
+    plugin_class = _pick_plugin_class(candidates)
+    if plugin_class is None:
+        log.warning("macOS pslist plugin not available - skipping")
+        return []
+
+    log.info("Running macOS pslist plugin...")
+    rows = run_plugin(image_path, plugin_class, progress_callback=_progress("mac.pslist"))
+
+    records: list[TimelineRecord] = []
+    for row in rows:
+        pid = str(row.get("PID", ""))
+        ppid = str(row.get("PPID", ""))
+        name = str(row.get("COMM") or row.get("Name") or row.get("Process") or "")
+
+        for ts_col, event_type in [
+            ("Start Time", "Process Started"),
+            ("Create Time", "Process Started"),
+            ("Exit Time", "Process Exited"),
+        ]:
+            ts = _to_utc(row.get(ts_col))
+            if ts is None:
+                continue
+            records.append(TimelineRecord(
+                timestamp=ts,
+                source="mac.pslist",
+                description=f"{event_type}: {name}",
+                detail=f"PID={pid} PPID={ppid}",
+            ))
+
+    log.log(SUCCESS_LEVEL, "macOS PsList complete: %d records collected", len(records))
+    return records
+
+
+def collect_mac_bash(image_path: str | Path) -> list[TimelineRecord]:
+    """Run macOS bash history plugin and normalize command history events."""
+    plugin_class = _pick_plugin_class(["mac.bash.Bash"])
+    if plugin_class is None:
+        log.warning("macOS bash plugin not available - skipping")
+        return []
+
+    log.info("Running macOS bash plugin...")
+    rows = run_plugin(image_path, plugin_class, progress_callback=_progress("mac.bash"))
+
+    records: list[TimelineRecord] = []
+    epoch_zero = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+    for row in rows:
+        command = str(row.get("Command") or row.get("Cmd") or row.get("History") or "")
+        process = str(row.get("Process") or row.get("Task") or "")
+        pid = str(row.get("PID", ""))
+
+        if not command:
+            continue
+
+        ts = _to_utc(
+            row.get("Command Time")
+            or row.get("Time")
+            or row.get("Timestamp")
+            or row.get("History Time")
+        )
+        records.append(TimelineRecord(
+            timestamp=ts or epoch_zero,
+            source="mac.bash",
+            description="Shell Command Executed",
+            detail=f"PID={pid} Process={process} Command={command}",
+        ))
+
+    log.log(SUCCESS_LEVEL, "macOS bash complete: %d records collected", len(records))
+    return records
+
+
+def collect_mac_lsof(image_path: str | Path) -> list[TimelineRecord]:
+    """Run macOS Lsof plugin and normalize open-file evidence."""
+    plugin_class = _pick_plugin_class(["mac.lsof.Lsof"])
+    if plugin_class is None:
+        log.warning("macOS lsof plugin not available - skipping")
+        return []
+
+    log.info("Running macOS lsof plugin...")
+    rows = run_plugin(image_path, plugin_class, progress_callback=_progress("mac.lsof"))
+
+    records: list[TimelineRecord] = []
+    epoch_zero = datetime(1970, 1, 1, tzinfo=timezone.utc)
+
+    for row in rows:
+        pid = str(row.get("PID", ""))
+        process = str(row.get("Process") or row.get("Task") or "")
+        fd = str(row.get("FD", ""))
+        path = str(row.get("Path") or row.get("Name") or "")
+
+        if not path:
+            continue
+
+        records.append(TimelineRecord(
+            timestamp=epoch_zero,
+            source="mac.lsof",
+            description=f"Open File: {path}",
+            detail=f"Process={process} PID={pid} FD={fd}",
+        ))
+
+    log.log(SUCCESS_LEVEL, "macOS Lsof complete: %d records collected", len(records))
+    return records
+
+
 # ---------------------------------------------------------------------------
 # Main facade
 # ---------------------------------------------------------------------------
 
 def create_timeline(
     image_path: str | Path,
+    os_family: str = "windows",
     run_timeliner: bool = True,
     run_mftscan: bool = True,
     run_shellbags: bool = True,
@@ -659,32 +890,59 @@ def create_timeline(
     run_malfind: bool = True,
     run_handles: bool = False,      # Disabled by default (generates many records)
     run_envars: bool = False,       # Disabled by default (generates many records)
+    run_linux_pslist: bool = True,
+    run_linux_bash: bool = True,
+    run_linux_lsof: bool = True,
+    run_mac_pslist: bool = True,
+    run_mac_bash: bool = True,
+    run_mac_lsof: bool = True,
 ) -> list[TimelineRecord]:
     """Collect and merge timeline records from all selected plugins.
 
     Returns records sorted by timestamp (ascending).
     """
     records: list[TimelineRecord] = []
-    
-    # Count enabled phases
-    phases = [
-        ("timeliner", run_timeliner),
-        ("mftscan", run_mftscan),
-        ("shellbags", run_shellbags),
-        ("psscan", run_psscan),
-        ("cmdline", run_cmdline),
-        ("netscan", run_netscan),
-        ("userassist", run_userassist),
-        ("dlllist", run_dlllist),
-        ("svcscan", run_svcscan),
-        ("filescan", run_filescan),
-        ("malfind", run_malfind),
-        ("handles", run_handles),
-        ("envars", run_envars),
-    ]
-    enabled_phases = [(name, enabled) for name, enabled in phases if enabled]
-    total_phases = len(enabled_phases)
-    
+    family = (os_family or "unknown").lower()
+
+    plan: list[tuple[str, Callable[[str | Path], list[TimelineRecord]]]] = []
+
+    if run_timeliner:
+        plan.append(("Timeliner", collect_timeliner))
+
+    if family == "windows":
+        windows_plan = [
+            ("MFT Scanning", run_mftscan, collect_mftscan),
+            ("ShellBags Scanning", run_shellbags, collect_shellbags),
+            ("Process Scanning (PsScan)", run_psscan, collect_psscan),
+            ("Command Line Extraction", run_cmdline, collect_cmdline),
+            ("Network Scanning", run_netscan, collect_netscan),
+            ("UserAssist Registry", run_userassist, collect_userassist),
+            ("DLL List", run_dlllist, collect_dlllist),
+            ("Service Scanning", run_svcscan, collect_svcscan),
+            ("File Scanning", run_filescan, collect_filescan),
+            ("Malware Detection (Malfind)", run_malfind, collect_malfind),
+            ("Handle Scanning", run_handles, collect_handles),
+            ("Environment Variables", run_envars, collect_envars),
+        ]
+        plan.extend((label, collector) for label, enabled, collector in windows_plan if enabled)
+    elif family == "linux":
+        linux_plan = [
+            ("Linux Process Scanning (PsList)", run_linux_pslist, collect_linux_pslist),
+            ("Linux Shell History", run_linux_bash, collect_linux_bash),
+            ("Linux Open Files", run_linux_lsof, collect_linux_lsof),
+        ]
+        plan.extend((label, collector) for label, enabled, collector in linux_plan if enabled)
+    elif family in {"mac", "macos", "darwin"}:
+        mac_plan = [
+            ("macOS Process Scanning (PsList)", run_mac_pslist, collect_mac_pslist),
+            ("macOS Shell History", run_mac_bash, collect_mac_bash),
+            ("macOS Open Files", run_mac_lsof, collect_mac_lsof),
+        ]
+        plan.extend((label, collector) for label, enabled, collector in mac_plan if enabled)
+    else:
+        log.warning("Unknown memory image family '%s': running only generic plugins", family)
+
+    total_phases = len(plan)
     if total_phases == 0:
         log.warning("No plugins selected for timeline extraction")
         return records
@@ -694,108 +952,11 @@ def create_timeline(
     log.info("=" * 70)
 
     scan_phases: list[str] = []
-    phase = 1
-
-    # Core timeline plugins
-    if run_timeliner:
-        log.info("📊 Phase %d/%d: Timeliner Scanning", phase, total_phases)
-        timeliner_records = collect_timeliner(image_path)
-        records.extend(timeliner_records)
-        scan_phases.append(f"Timeliner: {len(timeliner_records)} records")
-        phase += 1
-
-    if run_mftscan:
-        log.info("🧾 Phase %d/%d: MFT Scanning", phase, total_phases)
-        mftscan_records = collect_mftscan(image_path)
-        records.extend(mftscan_records)
-        scan_phases.append(f"MFTScan: {len(mftscan_records)} records")
-        phase += 1
-
-    if run_shellbags:
-        log.info("👜 Phase %d/%d: ShellBags Scanning", phase, total_phases)
-        shellbags_records = collect_shellbags(image_path)
-        records.extend(shellbags_records)
-        scan_phases.append(f"ShellBags: {len(shellbags_records)} records")
-        phase += 1
-
-    # Process-related plugins
-    if run_psscan:
-        log.info("🔍 Phase %d/%d: Process Scanning (PsScan)", phase, total_phases)
-        psscan_records = collect_psscan(image_path)
-        records.extend(psscan_records)
-        scan_phases.append(f"PsScan: {len(psscan_records)} records")
-        phase += 1
-
-    if run_cmdline:
-        log.info("💻 Phase %d/%d: Command Line Extraction", phase, total_phases)
-        cmdline_records = collect_cmdline(image_path)
-        records.extend(cmdline_records)
-        scan_phases.append(f"CmdLine: {len(cmdline_records)} records")
-        phase += 1
-
-    # Network plugins
-    if run_netscan:
-        log.info("🌐 Phase %d/%d: Network Scanning", phase, total_phases)
-        netscan_records = collect_netscan(image_path)
-        records.extend(netscan_records)
-        scan_phases.append(f"NetScan: {len(netscan_records)} records")
-        phase += 1
-
-    # Registry plugins
-    if run_userassist:
-        log.info("📜 Phase %d/%d: UserAssist Registry", phase, total_phases)
-        userassist_records = collect_userassist(image_path)
-        records.extend(userassist_records)
-        scan_phases.append(f"UserAssist: {len(userassist_records)} records")
-        phase += 1
-
-    # DLL analysis
-    if run_dlllist:
-        log.info("📦 Phase %d/%d: DLL List", phase, total_phases)
-        dlllist_records = collect_dlllist(image_path)
-        records.extend(dlllist_records)
-        scan_phases.append(f"DllList: {len(dlllist_records)} records")
-        phase += 1
-
-    # Services
-    if run_svcscan:
-        log.info("⚙️ Phase %d/%d: Service Scanning", phase, total_phases)
-        svcscan_records = collect_svcscan(image_path)
-        records.extend(svcscan_records)
-        scan_phases.append(f"SvcScan: {len(svcscan_records)} records")
-        phase += 1
-
-    # File scanning
-    if run_filescan:
-        log.info("📁 Phase %d/%d: File Scanning", phase, total_phases)
-        filescan_records = collect_filescan(image_path)
-        records.extend(filescan_records)
-        scan_phases.append(f"FileScan: {len(filescan_records)} records")
-        phase += 1
-
-    # Malware detection
-    if run_malfind:
-        log.info("🦠 Phase %d/%d: Malware Detection (Malfind)", phase, total_phases)
-        malfind_records = collect_malfind(image_path)
-        records.extend(malfind_records)
-        scan_phases.append(f"Malfind: {len(malfind_records)} records")
-        phase += 1
-
-    # Handle analysis
-    if run_handles:
-        log.info("🔗 Phase %d/%d: Handle Scanning", phase, total_phases)
-        handles_records = collect_handles(image_path)
-        records.extend(handles_records)
-        scan_phases.append(f"Handles: {len(handles_records)} records")
-        phase += 1
-
-    # Environment variables
-    if run_envars:
-        log.info("🌿 Phase %d/%d: Environment Variables", phase, total_phases)
-        envars_records = collect_envars(image_path)
-        records.extend(envars_records)
-        scan_phases.append(f"Envars: {len(envars_records)} records")
-        phase += 1
+    for phase, (label, collector) in enumerate(plan, start=1):
+        log.info("Phase %d/%d: %s", phase, total_phases, label)
+        phase_records = collector(image_path)
+        records.extend(phase_records)
+        scan_phases.append(f"{label}: {len(phase_records)} records")
 
     records.sort(key=lambda r: r.timestamp)
 

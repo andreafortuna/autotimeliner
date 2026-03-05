@@ -29,7 +29,22 @@ autotimeliner --help
 
 At startup, AutoTimeliner automatically downloads/installs Volatility3 symbol
 tables (Windows/macOS/Linux) and performs a best-effort memory OS/profile probe.
+Based on the detected image family, it enables the appropriate plugin set
+automatically:
+
+- `windows`: timeliner + Windows plugin set (mftscan, psscan, netscan, etc.)
+- `linux`: timeliner + `linux.pslist`, `linux.bash`, `linux.lsof`
+- `mac`: timeliner + `mac.pslist`, `mac.bash`, `mac.lsof`
 Schema validation is enabled via `jsonschema` (included in project dependencies).
+
+To speed up repeated runs, OS identification results are cached locally and
+reused when the same image (path/size/mtime) is analyzed again.
+
+Cache file location:
+
+```text
+~/.cache/autotimeliner/volatility3/.autotimeliner_profile_cache.json
+```
 
 ```
 autotimeliner -f IMAGEFILE [-t TIMEFRAME] [-o OUTPUT] [options]
@@ -47,6 +62,7 @@ autotimeliner -f IMAGEFILE [-t TIMEFRAME] [-o OUTPUT] [options]
 |---|---|
 | `-t`, `--timeframe` | Restrict output to `YYYY-MM-DD..YYYY-MM-DD` |
 | `-o`, `--output` | CSV output path (default: `<imagefile>-timeline.csv`) |
+| `--os-hint` | Force OS family (`windows`, `linux`, `mac`; aliases: `win`, `macos`, `darwin`) and skip auto-identification |
 
 #### Core Plugins (enabled by default)
 
@@ -62,6 +78,10 @@ autotimeliner -f IMAGEFILE [-t TIMEFRAME] [-o OUTPUT] [options]
 | `--skip-svcscan` | Do not scan Windows services |
 | `--skip-malfind` | Do not run malware/injection detection |
 
+> `--skip-mftscan`, `--skip-shellbags`, `--skip-psscan`, `--skip-cmdline`,
+> `--skip-netscan`, `--skip-userassist`, `--skip-svcscan`, and
+> `--skip-malfind` are meaningful for Windows images.
+
 #### Extended Plugins (disabled by default - opt-in)
 
 | Flag | Description |
@@ -70,6 +90,9 @@ autotimeliner -f IMAGEFILE [-t TIMEFRAME] [-o OUTPUT] [options]
 | `--with-filescan` | Enable open files scanning (generates many records) |
 | `--with-handles` | Enable handle scanning (generates many records) |
 | `--with-envars` | Enable environment variables extraction |
+
+> `--with-dlllist`, `--with-filescan`, `--with-handles`, and `--with-envars`
+> are Windows-only options and are ignored for Linux/macOS images.
 
 #### Other Options
 
@@ -88,6 +111,30 @@ autotimeliner -f IMAGEFILE [-t TIMEFRAME] [-o OUTPUT] [options]
 ```bash
 autotimeliner -f /evidence/memory.raw
 # → /evidence/memory.raw-timeline.csv
+```
+
+### Linux memory timeline
+
+```bash
+autotimeliner -f /evidence/linux-memory.mem
+```
+
+### Faster startup with OS hint
+
+```bash
+autotimeliner -f /evidence/memory.raw --os-hint windows
+```
+
+### Faster startup with macOS alias
+
+```bash
+autotimeliner -f /evidence/macos-memory.mem --os-hint darwin
+```
+
+### macOS memory timeline
+
+```bash
+autotimeliner -f /evidence/macos-memory.mem
 ```
 
 ### Filtered by time window
@@ -138,6 +185,18 @@ autotimeliner -f /evidence/memory.raw --skip-mftscan --skip-shellbags
 
 ```bash
 autotimeliner -f /evidence/memory.raw -v
+```
+
+### Identification progress logs
+
+During OS identification, AutoTimeliner logs probe progress explicitly:
+
+```text
+Starting OS identification using 5 probe plugins
+OS probe attempt: family=windows plugin=windows.info.Info
+OS probe returned no rows: windows.info.Info
+OS probe attempt: family=linux plugin=linux.banners.Banners
+Memory image identification succeeded: os=linux profile=linux:... probe=linux.banners.Banners
 ```
 
 ---

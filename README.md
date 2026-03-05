@@ -6,10 +6,16 @@
 [![Volatility3](https://img.shields.io/badge/volatility-3.x-orange)](https://github.com/volatilityfoundation/volatility3)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-AutoTimeliner runs multiple Volatility3 plugins against a Windows memory image
-and merges their output into a single, sorted CSV timeline:
+AutoTimeliner runs multiple Volatility3 plugins against Windows, Linux, and
+macOS memory images, then merges their output into a single, sorted CSV timeline:
 
-### Core Timeline Plugins
+### Generic Timeline Plugin
+
+| Plugin | What it captures |
+|---|---|
+| `timeliner` | Cross-plugin timestamp events (all OS families when supported) |
+
+### Windows Plugin Set
 
 | Plugin | What it captures |
 |---|---|
@@ -17,7 +23,23 @@ and merges their output into a single, sorted CSV timeline:
 | `mftscan` | MFT file entries found in memory |
 | `shellbags` | User folder-access history from registry hives |
 
-### Process & Execution Analysis
+### Linux Plugin Set
+
+| Plugin | What it captures |
+|---|---|
+| `linux.pslist` | Process start/exit timeline context |
+| `linux.bash` | Shell command history evidence |
+| `linux.lsof` | Open file evidence from processes |
+
+### macOS Plugin Set
+
+| Plugin | What it captures |
+|---|---|
+| `mac.pslist` | Process start/exit timeline context |
+| `mac.bash` | Shell command history evidence |
+| `mac.lsof` | Open file evidence from processes |
+
+### Windows Process & Execution Analysis
 
 | Plugin | What it captures |
 |---|---|
@@ -25,20 +47,20 @@ and merges their output into a single, sorted CSV timeline:
 | `cmdline` | Command-line arguments for each process |
 | `userassist` | Program execution evidence from Windows registry |
 
-### Network Analysis
+### Windows Network Analysis
 
 | Plugin | What it captures |
 |---|---|
 | `netscan` | Network connections with creation timestamps |
 
-### Malware Detection
+### Windows Malware Detection
 
 | Plugin | What it captures |
 |---|---|
 | `malfind` | Code injection and suspicious memory regions |
 | `svcscan` | Windows services (useful for persistence detection) |
 
-### Additional Plugins (opt-in)
+### Additional Windows Plugins (opt-in)
 
 | Plugin | What it captures |
 |---|---|
@@ -58,8 +80,9 @@ and merges their output into a single, sorted CSV timeline:
 | [jsonschema](https://pypi.org/project/jsonschema/) | ≥ 4.0 | enables Volatility3 schema validation and avoids `Dependency for validation unavailable: jsonschema` warning |
 | [mactime](https://www.sleuthkit.org/) | any | **optional** — only needed for `--use-mactime` legacy mode |
 
-> **Target OS of memory images**: Windows only (mftscan and shellbags are Windows-specific plugins).  
-> Linux/macOS image analysis is not currently supported.
+> AutoTimeliner identifies the memory image family automatically and enables
+> the appropriate plugin set for Windows, Linux, or macOS.
+> For faster startup you can pass `--os-hint` to skip automatic detection.
 
 ---
 
@@ -94,6 +117,7 @@ autotimeliner -f IMAGEFILE [-t TIMEFRAME] [-o OUTPUT] [options]
 | `-f`, `--imagefile` | Memory dump file or glob (e.g. `'*.raw'`) |
 | `-t`, `--timeframe` | Filter to `YYYY-MM-DD..YYYY-MM-DD` range |
 | `-o`, `--output` | Output CSV path (default: `<imagefile>-timeline.csv`) |
+| `--os-hint` | Force image OS family (`windows`, `linux`, `mac`; aliases: `win`, `macos`, `darwin`) and skip auto-identification |
 | `--skip-timeliner` | Skip the timeliner plugin |
 | `--skip-mftscan` | Skip the mftscan plugin |
 | `--skip-shellbags` | Skip the shellbags plugin |
@@ -131,13 +155,25 @@ Process all `.raw` files in a directory, specifying output path:
 autotimeliner -f './*.raw' -o /evidence/timeline.csv
 ```
 
+Speed up startup when you already know the dump OS:
+
+```bash
+autotimeliner -f TargetServer.raw --os-hint windows
+```
+
+Use macOS alias values for convenience:
+
+```bash
+autotimeliner -f MacbookCapture.mem --os-hint darwin
+```
+
 Run only timeliner and shellbags (skip MFT scan):
 
 ```bash
 autotimeliner -f TargetServer.raw --skip-mftscan
 ```
 
-Full forensic scan with all plugins enabled:
+Full forensic scan (Windows plugin set + optional extended plugins):
 
 ```bash
 autotimeliner -f TargetServer.raw --with-dlllist --with-filescan --with-handles --with-envars
@@ -147,6 +183,18 @@ Quick malware-focused scan:
 
 ```bash
 autotimeliner -f TargetServer.raw --skip-timeliner --skip-mftscan --skip-shellbags
+```
+
+Linux-focused timeline collection (auto-enables linux plugins):
+
+```bash
+autotimeliner -f UbuntuWorkstation.mem
+```
+
+macOS-focused timeline collection (auto-enables macOS plugins):
+
+```bash
+autotimeliner -f MacbookCapture.mem
 ```
 
 ---
@@ -165,6 +213,30 @@ The output CSV has the following columns:
 | `UID` / `GID` | User/group identifiers |
 | `Size` | File size in bytes |
 | `Mode` | File mode string |
+
+---
+
+## Identification Performance
+
+AutoTimeliner includes several optimizations to reduce identification time:
+
+- `--os-hint` bypasses automatic OS probing entirely.
+- Probe order is optimized using filename hints (for example `linux`, `ubuntu`, `macos`).
+- Identification results are cached per image key (`path + size + mtime`).
+
+Cache file:
+
+```text
+~/.cache/autotimeliner/volatility3/.autotimeliner_profile_cache.json
+```
+
+During detection, logs include probe progress and result messages such as:
+
+```text
+OS probe attempt: family=windows plugin=windows.info.Info
+OS probe returned no rows: windows.info.Info
+Memory image identification succeeded: os=linux profile=linux:... probe=linux.banners.Banners
+```
 
 ---
 

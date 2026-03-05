@@ -6,14 +6,46 @@
 [![Volatility3](https://img.shields.io/badge/volatility-3.x-orange)](https://github.com/volatilityfoundation/volatility3)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-AutoTimeliner runs three Volatility3 plugins against a Windows memory image
+AutoTimeliner runs multiple Volatility3 plugins against a Windows memory image
 and merges their output into a single, sorted CSV timeline:
+
+### Core Timeline Plugins
 
 | Plugin | What it captures |
 |---|---|
 | `timeliner` | Timestamps from processes, registry, handles, etc. |
 | `mftscan` | MFT file entries found in memory |
 | `shellbags` | User folder-access history from registry hives |
+
+### Process & Execution Analysis
+
+| Plugin | What it captures |
+|---|---|
+| `psscan` | Active, terminated, and hidden processes with timestamps |
+| `cmdline` | Command-line arguments for each process |
+| `userassist` | Program execution evidence from Windows registry |
+
+### Network Analysis
+
+| Plugin | What it captures |
+|---|---|
+| `netscan` | Network connections with creation timestamps |
+
+### Malware Detection
+
+| Plugin | What it captures |
+|---|---|
+| `malfind` | Code injection and suspicious memory regions |
+| `svcscan` | Windows services (useful for persistence detection) |
+
+### Additional Plugins (opt-in)
+
+| Plugin | What it captures |
+|---|---|
+| `dlllist` | DLLs loaded by each process |
+| `filescan` | Files open in memory at acquisition time |
+| `handles` | Open handles (files, registry keys, mutexes) |
+| `envars` | Environment variables for processes |
 
 ---
 
@@ -23,6 +55,7 @@ and merges their output into a single, sorted CSV timeline:
 |---|---|---|
 | Python | ≥ 3.9 | |
 | [Volatility3](https://github.com/volatilityfoundation/volatility3) | ≥ 2.5 | installed automatically via Poetry/pip |
+| [jsonschema](https://pypi.org/project/jsonschema/) | ≥ 4.0 | enables Volatility3 schema validation and avoids `Dependency for validation unavailable: jsonschema` warning |
 | [mactime](https://www.sleuthkit.org/) | any | **optional** — only needed for `--use-mactime` legacy mode |
 
 > **Target OS of memory images**: Windows only (mftscan and shellbags are Windows-specific plugins).  
@@ -64,6 +97,16 @@ autotimeliner -f IMAGEFILE [-t TIMEFRAME] [-o OUTPUT] [options]
 | `--skip-timeliner` | Skip the timeliner plugin |
 | `--skip-mftscan` | Skip the mftscan plugin |
 | `--skip-shellbags` | Skip the shellbags plugin |
+| `--skip-psscan` | Skip process scanning |
+| `--skip-cmdline` | Skip command-line extraction |
+| `--skip-netscan` | Skip network connection scanning |
+| `--skip-userassist` | Skip program execution evidence |
+| `--skip-svcscan` | Skip Windows services scanning |
+| `--skip-malfind` | Skip malware/injection detection |
+| `--with-dlllist` | Enable DLL analysis (slow) |
+| `--with-filescan` | Enable open files scanning (many records) |
+| `--with-handles` | Enable handle scanning (many records) |
+| `--with-envars` | Enable environment variables extraction |
 | `--use-mactime` | Legacy mode: use external `mactime` binary |
 | `-v`, `--verbose` | Enable debug logging |
 | `--version` | Print version and exit |
@@ -92,6 +135,18 @@ Run only timeliner and shellbags (skip MFT scan):
 
 ```bash
 autotimeliner -f TargetServer.raw --skip-mftscan
+```
+
+Full forensic scan with all plugins enabled:
+
+```bash
+autotimeliner -f TargetServer.raw --with-dlllist --with-filescan --with-handles --with-envars
+```
+
+Quick malware-focused scan:
+
+```bash
+autotimeliner -f TargetServer.raw --skip-timeliner --skip-mftscan --skip-shellbags
 ```
 
 ---

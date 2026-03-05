@@ -43,6 +43,17 @@ REQUIRED_PLUGIN_MODULES: tuple[str, ...] = (
     "volatility3.plugins.windows.info",
     "volatility3.plugins.linux.banners",
     "volatility3.plugins.mac.bash",
+    # Additional Windows forensic plugins
+    "volatility3.plugins.windows.psscan",
+    "volatility3.plugins.windows.cmdline",
+    "volatility3.plugins.windows.netscan",
+    "volatility3.plugins.windows.registry.userassist",
+    "volatility3.plugins.windows.dlllist",
+    "volatility3.plugins.windows.svcscan",
+    "volatility3.plugins.windows.filescan",
+    "volatility3.plugins.windows.handles",
+    "volatility3.plugins.windows.envars",
+    "volatility3.plugins.windows.malfind",
 )
 
 SYMBOL_TABLE_URLS: dict[str, str] = {

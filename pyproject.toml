@@ -19,6 +19,7 @@ packages = [{ include = "autotimeliner", from = "src" }]
 [tool.poetry.dependencies]
 python = "^3.9"
 volatility3 = ">=2.5"
+jsonschema = ">=4.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0"

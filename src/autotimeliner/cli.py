@@ -23,14 +23,25 @@ from autotimeliner.exporter import export_csv, export_mactime
 from autotimeliner.vol3_runner import identify_memory_profile
 
 ASCII_LOGO = r"""
-     _         _        _______ _                _ _
-    / \  _   _| |_ ___ |__   __(_)              | (_)
-   / _ \| | | | __/ _ \   | |   _ _ __ ___   ___| |_ _ __   ___ _ __
-  / ___ \ |_| | || (_) |  | |  | | '_ ` _ \ / _ \ | | '_ \ / _ \ '__|
- /_/   \_\__,_|\__\___/   |_|  |_|_| |_| |_|\___|_|_|_| |_|\___|_|
+                _     _______ _                _ _                 
+     /\        | |   |__   __(_)              | (_)                
+    /  \  _   _| |_ ___ | |   _ _ __ ___   ___| |_ _ __   ___ _ __ 
+   / /\ \| | | | __/ _ \| |  | | '_ ` _ \ / _ \ | | '_ \ / _ \ '__|
+  / ____ \ |_| | || (_) | |  | | | | | | |  __/ | | | | |  __/ |   
+ /_/    \_\__,_|\__\___/|_|  |_|_| |_| |_|\___|_|_|_| |_|\___|_|                                                                       
+                            Memory Timeline Extraction
 """
 
 SUCCESS_LEVEL = 25
+
+_OS_HINT_MAP = {
+    "windows": "windows",
+    "win": "windows",
+    "linux": "linux",
+    "mac": "mac",
+    "macos": "mac",
+    "darwin": "mac",
+}
 
 
 class _MalhuntStyleFormatter(logging.Formatter):
@@ -117,6 +128,12 @@ def _bold(text: str) -> str:
     return f"\033[1m{text}\033[0m"
 
 
+def _normalize_os_family(value: Optional[str]) -> str:
+    if not value:
+        return "unknown"
+    return _OS_HINT_MAP.get(value.strip().lower(), "unknown")
+
+
 def process_image(
     image_path: Path,
     timeframe: Optional[str],
@@ -135,6 +152,7 @@ def process_image(
     skip_malfind: bool,
     with_handles: bool,
     with_envars: bool,
+    os_hint: Optional[str] = None,
 ) -> None:
     log = logging.getLogger(__name__)
     out_path = output or image_path.parent / (image_path.name + "-timeline.csv")
@@ -143,11 +161,25 @@ def process_image(
     log.info("Processing image: %s", image_path)
     log.info("=" * 70)
 
-    log.info("Identifying memory dump OS and version...")
-    profile = identify_memory_profile(image_path)
-    os_family = profile.get("os") or "unknown"
-    profile_hint = profile.get("profile") or "n/a"
-    probe = profile.get("probe_plugin") or "n/a"
+    normalized_hint = _normalize_os_family(os_hint)
+    if normalized_hint != "unknown":
+        log.info("Using --os-hint=%s: skipping automatic OS identification", normalized_hint)
+        os_family = normalized_hint
+        profile_hint = f"hint:{normalized_hint}"
+        probe = "user-hint"
+    else:
+        log.info("Identifying memory dump OS and version...")
+        log.info("OS identification may take some time while Volatility automagics initialize")
+        profile = identify_memory_profile(image_path)
+        os_family = profile.get("os") or "unknown"
+        profile_hint = profile.get("profile") or "n/a"
+        probe = profile.get("probe_plugin") or "n/a"
+    log.info(
+        "OS identification result -> os=%s, profile=%s, probe=%s",
+        os_family,
+        profile_hint,
+        probe,
+    )
     log.log(
         SUCCESS_LEVEL,
         "Memory OS: %s | profile hint: %s | probe: %s",
@@ -155,6 +187,8 @@ def process_image(
         profile_hint,
         probe,
     )
+
+    effective_os_family = _normalize_os_family(os_family)
 
     effective_skip_mftscan = skip_mftscan
     effective_skip_shellbags = skip_shellbags
@@ -168,9 +202,18 @@ def process_image(
     effective_skip_malfind = skip_malfind
     effective_with_handles = with_handles
     effective_with_envars = with_envars
-    
-    if os_family != "windows":
-        # Windows-specific plugins
+
+    run_linux_pslist = False
+    run_linux_bash = False
+    run_linux_lsof = False
+    run_mac_pslist = False
+    run_mac_bash = False
+    run_mac_lsof = False
+
+    if effective_os_family == "windows":
+        log.info("Windows image detected: Windows forensic plugin set enabled")
+    elif effective_os_family == "linux":
+        # Disable Windows-only plugin set and enable Linux-specific collectors.
         effective_skip_mftscan = True
         effective_skip_shellbags = True
         effective_skip_psscan = True
@@ -183,11 +226,120 @@ def process_image(
         effective_skip_malfind = True
         effective_with_handles = False
         effective_with_envars = False
-        log.warning("Detected non-Windows image (%s): Windows-specific plugins disabled", os_family)
+
+        run_linux_pslist = True
+        run_linux_bash = True
+        run_linux_lsof = True
+        log.info("Linux image detected: enabling linux.pslist/linux.bash/linux.lsof")
+    elif effective_os_family == "mac":
+        # Disable Windows-only plugin set and enable macOS-specific collectors.
+        effective_skip_mftscan = True
+        effective_skip_shellbags = True
+        effective_skip_psscan = True
+        effective_skip_cmdline = True
+        effective_skip_netscan = True
+        effective_skip_userassist = True
+        effective_with_dlllist = False
+        effective_skip_svcscan = True
+        effective_with_filescan = False
+        effective_skip_malfind = True
+        effective_with_handles = False
+        effective_with_envars = False
+
+        run_mac_pslist = True
+        run_mac_bash = True
+        run_mac_lsof = True
+        log.info("macOS image detected: enabling mac.pslist/mac.bash/mac.lsof")
+    else:
+        # Unknown images fall back to generic timeline extraction.
+        effective_skip_mftscan = True
+        effective_skip_shellbags = True
+        effective_skip_psscan = True
+        effective_skip_cmdline = True
+        effective_skip_netscan = True
+        effective_skip_userassist = True
+        effective_with_dlllist = False
+        effective_skip_svcscan = True
+        effective_with_filescan = False
+        effective_skip_malfind = True
+        effective_with_handles = False
+        effective_with_envars = False
+        log.warning("Unknown image family '%s': running generic plugins only", os_family)
+
+    if effective_os_family != "windows":
+        unsupported_requested: list[str] = []
+        if with_dlllist:
+            unsupported_requested.append("--with-dlllist")
+        if with_filescan:
+            unsupported_requested.append("--with-filescan")
+        if with_handles:
+            unsupported_requested.append("--with-handles")
+        if with_envars:
+            unsupported_requested.append("--with-envars")
+        if unsupported_requested:
+            log.warning(
+                "Ignored Windows-only flags for %s image: %s",
+                effective_os_family,
+                ", ".join(unsupported_requested),
+            )
+
+    planned_plugins: list[str] = []
+    if not skip_timeliner:
+        planned_plugins.append("timeliner.Timeliner")
+
+    if effective_os_family == "windows":
+        if not effective_skip_mftscan:
+            planned_plugins.append("windows.mftscan.MFTScan")
+        if not effective_skip_shellbags:
+            planned_plugins.append("windows.shellbags.ShellBags")
+        if not effective_skip_psscan:
+            planned_plugins.append("windows.psscan.PsScan")
+        if not effective_skip_cmdline:
+            planned_plugins.append("windows.cmdline.CmdLine")
+        if not effective_skip_netscan:
+            planned_plugins.append("windows.netscan.NetScan")
+        if not effective_skip_userassist:
+            planned_plugins.append("windows.registry.userassist.UserAssist")
+        if effective_with_dlllist:
+            planned_plugins.append("windows.dlllist.DllList")
+        if not effective_skip_svcscan:
+            planned_plugins.append("windows.svcscan.SvcScan")
+        if effective_with_filescan:
+            planned_plugins.append("windows.filescan.FileScan")
+        if not effective_skip_malfind:
+            planned_plugins.append("windows.malfind.Malfind")
+        if effective_with_handles:
+            planned_plugins.append("windows.handles.Handles")
+        if effective_with_envars:
+            planned_plugins.append("windows.envars.Envars")
+    elif effective_os_family == "linux":
+        if run_linux_pslist:
+            planned_plugins.append("linux.pslist.PsList")
+        if run_linux_bash:
+            planned_plugins.append("linux.bash.Bash")
+        if run_linux_lsof:
+            planned_plugins.append("linux.lsof.Lsof")
+    elif effective_os_family == "mac":
+        if run_mac_pslist:
+            planned_plugins.append("mac.pslist.PsList")
+        if run_mac_bash:
+            planned_plugins.append("mac.bash.Bash")
+        if run_mac_lsof:
+            planned_plugins.append("mac.lsof.Lsof")
+
+    if planned_plugins:
+        log.info(
+            "Plugins scheduled for execution (%d): %s",
+            len(planned_plugins),
+            ", ".join(planned_plugins),
+        )
+    else:
+        log.warning("No plugins scheduled for execution with current options")
 
     log.info("Collecting timeline data from Volatility3 plugins...")
     records = create_timeline(
         image_path=image_path,
+        os_family=effective_os_family,
         run_timeliner=not skip_timeliner,
         run_mftscan=not effective_skip_mftscan,
         run_shellbags=not effective_skip_shellbags,
@@ -201,10 +353,19 @@ def process_image(
         run_malfind=not effective_skip_malfind,
         run_handles=effective_with_handles,
         run_envars=effective_with_envars,
+        run_linux_pslist=run_linux_pslist,
+        run_linux_bash=run_linux_bash,
+        run_linux_lsof=run_linux_lsof,
+        run_mac_pslist=run_mac_pslist,
+        run_mac_bash=run_mac_bash,
+        run_mac_lsof=run_mac_lsof,
     )
 
     if not records:
-        log.warning("No records collected - check that the image is a supported Windows memory dump")
+        log.warning(
+            "No records collected - verify Volatility support/symbols for this %s memory image",
+            effective_os_family,
+        )
         return
 
     log.log(SUCCESS_LEVEL, "%d records collected. Writing output...", len(records))
@@ -254,6 +415,14 @@ def main() -> None:
         help="[DEPRECATED] Volatility2 profiles are not used in Volatility3. "
              "OS detection is automatic. This flag is ignored.",
         metavar="PROFILE",
+    )
+    parser.add_argument(
+        "--os-hint",
+        required=False,
+        default=None,
+        choices=["windows", "linux", "mac", "macos", "darwin", "win"],
+        help="Optional OS hint to skip auto-identification and speed up startup",
+        metavar="OS",
     )
     parser.add_argument(
         "--skip-timeliner",
@@ -372,6 +541,7 @@ def main() -> None:
                 skip_malfind=args.skip_malfind,
                 with_handles=args.with_handles,
                 with_envars=args.with_envars,
+                os_hint=args.os_hint,
             )
         except Exception as exc:  # noqa: BLE001
             logging.getLogger(__name__).error("Failed to process %s: %s", image_file, exc, exc_info=args.verbose)

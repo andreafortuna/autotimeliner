@@ -2,25 +2,32 @@
 
 ## Overview
 
-AutoTimeliner automates the creation of a forensic timeline from a Windows volatile memory dump.
+AutoTimeliner automates the creation of a forensic timeline from Windows, Linux,
+and macOS volatile memory dumps.
 
 It runs multiple **Volatility3** plugins and merges their output into a single sorted CSV:
 
 ```
 ┌─────────────────────────────────────────────────┐
-│ Core Timeline Plugins                           │
-│   timeliner, mftscan, shellbags                 │
+│ Core Timeline Plugin                            │
+│   timeliner                                      │
 ├─────────────────────────────────────────────────┤
-│ Process & Execution Analysis                    │
+│ Windows Process & Execution Analysis            │
 │   psscan, cmdline, userassist                   │
 ├─────────────────────────────────────────────────┤
-│ Network Analysis                                │
+│ Linux Plugin Set                                │
+│   linux.pslist, linux.bash, linux.lsof          │
+├─────────────────────────────────────────────────┤
+│ macOS Plugin Set                                │
+│   mac.pslist, mac.bash, mac.lsof                │
+├─────────────────────────────────────────────────┤
+│ Windows Network Analysis                        │
 │   netscan                                       │
 ├─────────────────────────────────────────────────┤
-│ Malware Detection                               │
+│ Windows Malware Detection                       │
 │   malfind, svcscan                              │
 ├─────────────────────────────────────────────────┤
-│ Extended Plugins (opt-in)                       │
+│ Extended Windows Plugins (opt-in)               │
 │   dlllist, filescan, handles, envars            │
 └─────────────────────────────────────────────────┘
                       │
@@ -33,6 +40,12 @@ It runs multiple **Volatility3** plugins and merges their output into a single s
                       ▼
                timeline.csv
 ```
+
+OS identification notes:
+
+- Auto-detection selects Windows/Linux/macOS plugin sets.
+- `--os-hint` can skip detection for faster startup.
+- Identification results are cached and reused for unchanged images.
 
 ## Contents
 

@@ -88,9 +88,9 @@ def _install_success_level() -> None:
 
 def _render_banner(version: str) -> str:
     title = f"AUTOTIMELINER v{version} - Timeline Extraction with Volatility3"
-    top = "╔" + "═" * (len(title) + 4) + "╗"
-    middle = f"║  {title}  ║"
-    bottom = "╚" + "═" * (len(title) + 4) + "╝"
+    top = "+" + "-" * (len(title) + 4) + "+"
+    middle = f"|  {title}  |"
+    bottom = "+" + "-" * (len(title) + 4) + "+"
 
     return textwrap.dedent(
         f"""\
@@ -518,6 +518,12 @@ def main() -> None:
     if not image_files:
         logging.getLogger(__name__).error("No files matched: %s", args.imagefile)
         sys.exit(1)
+
+    if args.output and len(image_files) > 1:
+        logging.getLogger(__name__).error(
+            "--output can only be used with one image; omit it to write a separate timeline per image"
+        )
+        sys.exit(2)
 
     output = Path(args.output) if args.output else None
 

@@ -42,6 +42,19 @@ class TestCli:
         assert result.returncode == 1
         assert "No files matched" in result.stderr
 
+    def test_output_path_rejects_multiple_images(self, monkeypatch, capsys):
+        monkeypatch.setattr(cli, "glob", lambda _pattern: ["one.raw", "two.raw"])
+        monkeypatch.setattr(sys, "argv", ["autotimeliner", "-f", "*.raw", "-o", "timeline.csv"])
+
+        try:
+            cli.main()
+        except SystemExit as exc:
+            assert exc.code == 2
+        else:
+            raise AssertionError("multiple images with one output path must be rejected")
+
+        assert "--output can only be used with one image" in capsys.readouterr().err
+
 
 class TestProcessImageOsAwareSelection:
     def test_linux_image_enables_linux_plugins(self, monkeypatch):

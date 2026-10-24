@@ -61,7 +61,7 @@ autotimeliner -f IMAGEFILE [-t TIMEFRAME] [-o OUTPUT] [options]
 | Flag | Description |
 |---|---|
 | `-t`, `--timeframe` | Restrict output to `YYYY-MM-DD..YYYY-MM-DD` |
-| `-o`, `--output` | CSV output path (default: `<imagefile>-timeline.csv`) |
+| `-o`, `--output` | CSV output path (default: `<imagefile>-timeline.csv`). Use only with one matched image; omit it for a glob to write one timeline per image. |
 | `--os-hint` | Force OS family (`windows`, `linux`, `mac`; aliases: `win`, `macos`, `darwin`) and skip auto-identification |
 
 #### Core Plugins (enabled by default)
